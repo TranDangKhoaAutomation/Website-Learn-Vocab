@@ -461,15 +461,15 @@
                     speakText(card.example_sentence);
                 }
 
-                const nextDelay = state.settings.speakExample && card.example_sentence ? 3600 : 2200;
+                const nextDelay = state.settings.speakExample && card.example_sentence ? 6200 : 4200;
                 scheduleAutoRun(() => {
                     if (!state.autoRunning) return;
 
                     state.index = (state.index + 1) % cards.length;
                     render(false);
-                    scheduleAutoRun(runCurrentCardAutomatically, 350);
+                    scheduleAutoRun(runCurrentCardAutomatically, 900);
                 }, nextDelay);
-            }, 2200);
+            }, 3600);
         }
 
         function startAutoRun() {

@@ -103,11 +103,14 @@ include __DIR__ . '/../includes/navbar.php';
             <div class="study-actions">
                 <button class="btn btn-outline-secondary" id="fcPrev" type="button"><i class="bi bi-chevron-left"></i> Previous</button>
                 <div class="d-flex gap-2 flex-wrap justify-content-center">
-                    <button class="btn btn-warning" id="fcAutoRun" type="button"><i class="bi bi-play-fill"></i> Tự động chạy</button>
                     <button class="btn btn-outline-danger" id="fcWrong" type="button">I don't know</button>
                     <button class="btn btn-success" id="fcKnow" type="button">I know</button>
                 </div>
                 <button class="btn btn-outline-secondary" id="fcNext" type="button">Next <i class="bi bi-chevron-right"></i></button>
+            </div>
+            <div class="flashcard-auto-actions">
+                <button class="btn btn-warning" id="fcAutoRun" type="button"><i class="bi bi-play-fill"></i> Tự động chạy</button>
+                <span>Tự đọc từ, lật thẻ và chuyển sang thẻ tiếp theo chậm hơn.</span>
             </div>
             <div class="small text-muted mt-3" id="speechNotice" hidden>Trình duyệt của bạn không hỗ trợ đọc văn bản.</div>
         </section>

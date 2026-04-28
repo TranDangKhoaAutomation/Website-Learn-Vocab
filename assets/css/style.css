@@ -665,6 +665,24 @@ a {
     margin-top: 18px;
 }
 
+.flashcard-auto-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 14px;
+    text-align: center;
+    flex-wrap: wrap;
+}
+
+.flashcard-auto-actions .btn {
+    min-width: 168px;
+}
+
 .question-area {
     min-height: 280px;
 }
