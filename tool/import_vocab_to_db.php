@@ -11,10 +11,12 @@ CLI:
   php tool/import_vocab_to_db.php --set-id=1
   php tool/import_vocab_to_db.php --set-id=1 --json=tool/vocab.json --dry-run=1
   php tool/import_vocab_to_db.php --user-id=1 --by-title=1 --dry-run=1
+  php tool/import_vocab_to_db.php vocab.json --no-online-ipa=1
 
 File này đọc vocab.json rồi thêm vào bảng flashcards.
 Trước khi thêm, hệ thống kiểm tra trùng từ trong toàn bộ bảng flashcards.
 Nếu bật by-title, mỗi item sẽ được đưa vào bộ từ có title bằng source_title.
+Nếu thiếu IPA, tool tự bỏ phần trong ngoặc như (n), (adj), tách cụm từ và tra IPA từng từ.
 */
 
 ini_set('memory_limit', '512M');
@@ -35,6 +37,8 @@ if ($isCli) {
 }
 
 const DEFAULT_JSON_FILE = __DIR__ . '/vocab.json';
+const IPA_CACHE_FILE = __DIR__ . '/ipa_cache.json';
+const IPA_LOOKUP_TIMEOUT = 5;
 
 function import_h(mixed $value): string
 {
@@ -151,10 +155,490 @@ function import_normalize_item(array $item): array
     ];
 }
 
+function import_strip_term_notes(string $term): string
+{
+    $term = import_clean_text($term);
+    $term = preg_replace('/\s*\([^)]*\)/u', ' ', $term);
+    $term = preg_replace('/\s+/u', ' ', (string) $term);
+
+    return trim((string) $term);
+}
+
+function import_ipa_key(string $term): string
+{
+    $term = import_strip_term_notes($term);
+    $term = mb_strtolower($term, 'UTF-8');
+    $term = preg_replace('/[^\p{L}\p{N}\s\'’.-]+/u', ' ', $term);
+    $term = preg_replace('/\s+/u', ' ', (string) $term);
+
+    return trim((string) $term, " \t\n\r\0\x0B'’.-");
+}
+
+function import_term_parts_for_ipa(string $term): array
+{
+    $base = import_ipa_key($term);
+
+    if ($base === '') {
+        return [];
+    }
+
+    $rawParts = preg_split('/\s+/u', $base) ?: [];
+    $parts = [];
+    $ignored = [
+        'n' => true,
+        'v' => true,
+        'adj' => true,
+        'adv' => true,
+        'prep' => true,
+        'pron' => true,
+        'conj' => true,
+        'det' => true,
+        'sbd' => true,
+        'sb' => true,
+        'sth' => true,
+        'smth' => true,
+    ];
+
+    foreach ($rawParts as $part) {
+        $part = trim((string) $part, " \t\n\r\0\x0B'’.-");
+
+        if ($part === '' || isset($ignored[$part]) || preg_match('/^\d+$/', $part)) {
+            continue;
+        }
+
+        $parts[] = $part;
+    }
+
+    return $parts;
+}
+
+function import_clean_ipa(mixed $value): string
+{
+    $ipa = import_clean_text($value);
+
+    if ($ipa === '') {
+        return '';
+    }
+
+    $ipa = str_replace(['[', ']'], ['/', '/'], $ipa);
+    $ipa = preg_replace('/\s+/u', ' ', (string) $ipa);
+    $ipa = trim((string) $ipa);
+
+    if ($ipa !== '' && $ipa[0] !== '/') {
+        $ipa = '/' . $ipa . '/';
+    }
+
+    return $ipa;
+}
+
+function import_add_ipa_to_map(array &$map, string $term, string $ipa): void
+{
+    $ipa = import_clean_ipa($ipa);
+    $key = import_ipa_key($term);
+
+    if ($key !== '' && $ipa !== '' && !isset($map[$key])) {
+        $map[$key] = $ipa;
+    }
+}
+
+function import_builtin_ipa_map(): array
+{
+    return [
+        'a' => '/ə/',
+        'an' => '/ən/',
+        'and' => '/ænd/',
+        'are' => '/ɑːr/',
+        'as' => '/æz/',
+        'at' => '/æt/',
+        'be' => '/biː/',
+        'by' => '/baɪ/',
+        'for' => '/fɔːr/',
+        'from' => '/frʌm/',
+        'in' => '/ɪn/',
+        'is' => '/ɪz/',
+        'of' => '/əv/',
+        'on' => '/ɑːn/',
+        'or' => '/ɔːr/',
+        'the' => '/ðə/',
+        'to' => '/tuː/',
+        'with' => '/wɪð/',
+    ];
+}
+
+function import_load_existing_ipa_map(PDO $pdo): array
+{
+    $stmt = $pdo->query('
+        SELECT term, pronunciation
+        FROM flashcards
+        WHERE pronunciation IS NOT NULL AND pronunciation <> ""
+    ');
+
+    $map = [];
+
+    foreach ($stmt->fetchAll() as $row) {
+        import_add_ipa_to_map($map, (string) $row['term'], (string) $row['pronunciation']);
+    }
+
+    return $map;
+}
+
+function import_add_json_ipa_to_map(array &$map, array $items): void
+{
+    foreach ($items as $rawItem) {
+        if (!is_array($rawItem)) {
+            continue;
+        }
+
+        $item = import_normalize_item($rawItem);
+
+        if ($item['term'] !== '' && $item['pronunciation'] !== '') {
+            import_add_ipa_to_map($map, $item['term'], $item['pronunciation']);
+        }
+    }
+}
+
+function import_load_ipa_cache(): array
+{
+    if (!is_file(IPA_CACHE_FILE)) {
+        return ['entries' => [], 'misses' => []];
+    }
+
+    $content = file_get_contents(IPA_CACHE_FILE);
+    $decoded = $content !== false ? json_decode($content, true) : null;
+
+    if (!is_array($decoded)) {
+        return ['entries' => [], 'misses' => []];
+    }
+
+    return [
+        'entries' => is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [],
+        'misses' => is_array($decoded['misses'] ?? null) ? $decoded['misses'] : [],
+    ];
+}
+
+function import_save_ipa_cache(array $cache): void
+{
+    $payload = [
+        'updated_at' => date(DATE_ATOM),
+        'source' => 'https://api.dictionaryapi.dev, https://api.datamuse.com',
+        'entries' => $cache['entries'] ?? [],
+        'misses' => $cache['misses'] ?? [],
+    ];
+
+    file_put_contents(
+        IPA_CACHE_FILE,
+        json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)
+    );
+}
+
+function import_http_get_json(string $url): ?array
+{
+    $body = false;
+
+    if (function_exists('curl_init')) {
+        $curl = curl_init($url);
+        curl_setopt_array($curl, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_CONNECTTIMEOUT => IPA_LOOKUP_TIMEOUT,
+            CURLOPT_TIMEOUT => IPA_LOOKUP_TIMEOUT,
+            CURLOPT_USERAGENT => 'EnglishLearningApp IPA Importer',
+            CURLOPT_HTTPHEADER => ['Accept: application/json'],
+        ]);
+        $body = curl_exec($curl);
+        $status = (int) curl_getinfo($curl, CURLINFO_HTTP_CODE);
+        curl_close($curl);
+
+        if ($body === false || $status < 200 || $status >= 300) {
+            return null;
+        }
+    } else {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => IPA_LOOKUP_TIMEOUT,
+                'header' => "Accept: application/json\r\nUser-Agent: EnglishLearningApp IPA Importer\r\n",
+            ],
+        ]);
+        $body = @file_get_contents($url, false, $context);
+
+        if ($body === false) {
+            return null;
+        }
+    }
+
+    $decoded = json_decode((string) $body, true);
+
+    return is_array($decoded) ? $decoded : null;
+}
+
+function import_extract_ipa_from_dictionary(array $decoded): string
+{
+    if (!array_is_list($decoded)) {
+        return '';
+    }
+
+    foreach ($decoded as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        foreach (($entry['phonetics'] ?? []) as $phonetic) {
+            if (!is_array($phonetic)) {
+                continue;
+            }
+
+            $ipa = import_clean_ipa($phonetic['text'] ?? '');
+
+            if ($ipa !== '') {
+                return $ipa;
+            }
+        }
+
+        $ipa = import_clean_ipa($entry['phonetic'] ?? '');
+
+        if ($ipa !== '') {
+            return $ipa;
+        }
+    }
+
+    return '';
+}
+
+function import_fetch_word_ipa_online(string $word): string
+{
+    $word = import_ipa_key($word);
+
+    if ($word === '' || str_contains($word, ' ')) {
+        return '';
+    }
+
+    $url = 'https://api.dictionaryapi.dev/api/v2/entries/en/' . rawurlencode($word);
+    $decoded = import_http_get_json($url);
+
+    if (!$decoded) {
+        usleep(180000);
+        $decoded = import_http_get_json($url);
+    }
+
+    $ipa = $decoded ? import_extract_ipa_from_dictionary($decoded) : '';
+
+    return $ipa !== '' ? $ipa : import_fetch_word_ipa_datamuse($word);
+}
+
+function import_arpabet_phone_to_ipa(string $phone, string $stress): string
+{
+    $map = [
+        'AA' => 'ɑ',
+        'AE' => 'æ',
+        'AH' => $stress === '0' ? 'ə' : 'ʌ',
+        'AO' => 'ɔː',
+        'AW' => 'aʊ',
+        'AY' => 'aɪ',
+        'B' => 'b',
+        'CH' => 'tʃ',
+        'D' => 'd',
+        'DH' => 'ð',
+        'EH' => 'ɛ',
+        'ER' => $stress === '0' ? 'ɚ' : 'ɝ',
+        'EY' => 'eɪ',
+        'F' => 'f',
+        'G' => 'ɡ',
+        'HH' => 'h',
+        'IH' => 'ɪ',
+        'IY' => 'iː',
+        'JH' => 'dʒ',
+        'K' => 'k',
+        'L' => 'l',
+        'M' => 'm',
+        'N' => 'n',
+        'NG' => 'ŋ',
+        'OW' => 'oʊ',
+        'OY' => 'ɔɪ',
+        'P' => 'p',
+        'R' => 'r',
+        'S' => 's',
+        'SH' => 'ʃ',
+        'T' => 't',
+        'TH' => 'θ',
+        'UH' => 'ʊ',
+        'UW' => 'uː',
+        'V' => 'v',
+        'W' => 'w',
+        'Y' => 'j',
+        'Z' => 'z',
+        'ZH' => 'ʒ',
+    ];
+
+    return $map[$phone] ?? '';
+}
+
+function import_arpabet_to_ipa(string $arpabet): string
+{
+    $tokens = preg_split('/\s+/u', trim($arpabet)) ?: [];
+    $ipa = '';
+
+    foreach ($tokens as $token) {
+        if (!preg_match('/^([A-Z]+)([012])?$/', $token, $matches)) {
+            continue;
+        }
+
+        $phone = $matches[1];
+        $stress = $matches[2] ?? '';
+        $converted = import_arpabet_phone_to_ipa($phone, $stress);
+
+        if ($converted === '') {
+            continue;
+        }
+
+        if ($stress === '1') {
+            $converted = 'ˈ' . $converted;
+        } elseif ($stress === '2') {
+            $converted = 'ˌ' . $converted;
+        }
+
+        $ipa .= $converted;
+    }
+
+    return $ipa !== '' ? '/' . $ipa . '/' : '';
+}
+
+function import_extract_ipa_from_datamuse(array $decoded, string $word): string
+{
+    if (!array_is_list($decoded)) {
+        return '';
+    }
+
+    foreach ($decoded as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+
+        $entryWord = import_ipa_key((string) ($entry['word'] ?? ''));
+
+        if ($entryWord !== '' && $entryWord !== $word) {
+            continue;
+        }
+
+        foreach (($entry['tags'] ?? []) as $tag) {
+            if (!is_string($tag) || !str_starts_with($tag, 'pron:')) {
+                continue;
+            }
+
+            $ipa = import_arpabet_to_ipa(substr($tag, 5));
+
+            if ($ipa !== '') {
+                return $ipa;
+            }
+        }
+    }
+
+    return '';
+}
+
+function import_fetch_word_ipa_datamuse(string $word): string
+{
+    $word = import_ipa_key($word);
+
+    if ($word === '' || str_contains($word, ' ')) {
+        return '';
+    }
+
+    $url = 'https://api.datamuse.com/words?sp=' . rawurlencode($word) . '&md=r&max=1';
+    $decoded = import_http_get_json($url);
+
+    return $decoded ? import_extract_ipa_from_datamuse($decoded, $word) : '';
+}
+
+function import_lookup_ipa_part(string $part, array &$ipaMap, array &$ipaCache, bool &$cacheChanged, bool $onlineLookup): string
+{
+    $key = import_ipa_key($part);
+
+    if ($key === '') {
+        return '';
+    }
+
+    if (isset($ipaMap[$key])) {
+        return import_clean_ipa($ipaMap[$key]);
+    }
+
+    if (isset($ipaCache['entries'][$key])) {
+        $ipa = import_clean_ipa($ipaCache['entries'][$key]);
+        import_add_ipa_to_map($ipaMap, $key, $ipa);
+        return $ipa;
+    }
+
+    if (!$onlineLookup) {
+        return '';
+    }
+
+    $ipa = import_fetch_word_ipa_online($key);
+
+    if ($ipa !== '') {
+        $ipaCache['entries'][$key] = $ipa;
+        unset($ipaCache['misses'][$key]);
+        import_add_ipa_to_map($ipaMap, $key, $ipa);
+    } else {
+        unset($ipaCache['misses'][$key]);
+    }
+
+    $cacheChanged = true;
+
+    return $ipa;
+}
+
+function import_generate_pronunciation(string $term, array &$ipaMap, array &$ipaCache, bool &$cacheChanged, bool $onlineLookup): string
+{
+    $key = import_ipa_key($term);
+
+    if ($key === '') {
+        return '';
+    }
+
+    if (isset($ipaMap[$key])) {
+        return import_limit_text(import_clean_ipa($ipaMap[$key]), 120);
+    }
+
+    if (isset($ipaCache['entries'][$key])) {
+        $ipa = import_clean_ipa($ipaCache['entries'][$key]);
+        import_add_ipa_to_map($ipaMap, $key, $ipa);
+        return import_limit_text($ipa, 120);
+    }
+
+    $parts = import_term_parts_for_ipa($term);
+
+    if (!$parts) {
+        return '';
+    }
+
+    $ipaParts = [];
+
+    foreach ($parts as $part) {
+        $ipa = import_lookup_ipa_part($part, $ipaMap, $ipaCache, $cacheChanged, $onlineLookup);
+
+        if ($ipa === '') {
+            return '';
+        }
+
+        $ipaParts[] = $ipa;
+    }
+
+    $generated = import_limit_text(implode(' ', $ipaParts), 120);
+
+    if ($generated !== '') {
+        $ipaCache['entries'][$key] = $generated;
+        unset($ipaCache['misses'][$key]);
+        import_add_ipa_to_map($ipaMap, $key, $generated);
+        $cacheChanged = true;
+    }
+
+    return $generated;
+}
+
 function import_load_existing_term_map(PDO $pdo): array
 {
     $stmt = $pdo->query('
-        SELECT f.id, f.set_id, f.term, s.title AS set_title
+        SELECT f.id, f.set_id, f.term, f.pronunciation, s.title AS set_title
         FROM flashcards f
         INNER JOIN vocabulary_sets s ON s.id = f.set_id
     ');
@@ -169,6 +653,7 @@ function import_load_existing_term_map(PDO $pdo): array
                     'set_id' => (int) $row['set_id'],
                     'set_title' => (string) $row['set_title'],
                     'term' => (string) $row['term'],
+                    'pronunciation' => (string) ($row['pronunciation'] ?? ''),
                 ];
             }
         }
@@ -304,7 +789,7 @@ function import_get_target_set(PDO $pdo, array $item, int $fallbackSetId, bool $
     return $set;
 }
 
-function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $groupByTitle = false, ?int $userId = null): array
+function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $groupByTitle = false, ?int $userId = null, bool $autoIpa = true, bool $onlineIpa = true): array
 {
     if (!$groupByTitle && $setId <= 0) {
         throw new RuntimeException('Vui lòng chọn bộ từ cần import.');
@@ -318,6 +803,10 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
 
     $items = import_load_json_items($jsonFile);
     $dbMap = import_load_existing_term_map($pdo);
+    $ipaMap = array_replace(import_builtin_ipa_map(), import_load_existing_ipa_map($pdo));
+    import_add_json_ipa_to_map($ipaMap, $items);
+    $ipaCache = import_load_ipa_cache();
+    $ipaCacheChanged = false;
     $jsonMap = [];
     $setCache = [];
     $createdSets = [];
@@ -328,6 +817,11 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
         'group_by_title' => $groupByTitle,
         'total_json' => count($items),
         'created_sets' => [],
+        'auto_ipa' => $autoIpa,
+        'online_ipa' => $onlineIpa,
+        'ipa_generated' => [],
+        'ipa_updated_existing' => [],
+        'ipa_missing' => [],
         'inserted' => [],
         'skipped_db' => [],
         'skipped_json' => [],
@@ -337,6 +831,11 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
     $insert = $pdo->prepare('
         INSERT INTO flashcards (set_id, term, definition, example_sentence, pronunciation, image_url, created_at)
         VALUES (?, ?, ?, ?, ?, ?, NOW())
+    ');
+    $updateExistingIpa = $pdo->prepare('
+        UPDATE flashcards
+        SET pronunciation = ?
+        WHERE id = ? AND (pronunciation IS NULL OR pronunciation = "")
     ');
 
     if (!$dryRun) {
@@ -386,6 +885,24 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
                     $targetSetTitle = (string) ($set['title'] ?? 'Imported Vocabulary');
                 }
 
+                if ($autoIpa && trim((string) ($duplicateInDb['pronunciation'] ?? '')) === '') {
+                    $generatedIpa = import_generate_pronunciation($item['term'], $ipaMap, $ipaCache, $ipaCacheChanged, $onlineIpa);
+
+                    if ($generatedIpa !== '') {
+                        if (!$dryRun) {
+                            $updateExistingIpa->execute([$generatedIpa, (int) $duplicateInDb['card_id']]);
+                        }
+
+                        import_add_ipa_to_map($ipaMap, $duplicateInDb['term'], $generatedIpa);
+                        $report['ipa_updated_existing'][] = [
+                            'index' => $index + 1,
+                            'card_id' => (int) $duplicateInDb['card_id'],
+                            'word' => $duplicateInDb['term'],
+                            'ipa' => $generatedIpa,
+                        ];
+                    }
+                }
+
                 $report['skipped_db'][] = [
                     'index' => $index + 1,
                     'word' => $item['term'],
@@ -402,6 +919,26 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
             $targetSet = import_get_target_set($pdo, $item, $setId, $groupByTitle, $userId, $dryRun, $setCache, $createdSets);
             $targetSetId = (int) $targetSet['id'];
             $targetSetTitle = (string) $targetSet['title'];
+
+            if ($autoIpa && $item['pronunciation'] === '') {
+                $generatedIpa = import_generate_pronunciation($item['term'], $ipaMap, $ipaCache, $ipaCacheChanged, $onlineIpa);
+
+                if ($generatedIpa !== '') {
+                    $item['pronunciation'] = $generatedIpa;
+                    $report['ipa_generated'][] = [
+                        'index' => $index + 1,
+                        'word' => $item['term'],
+                        'ipa' => $generatedIpa,
+                    ];
+                } else {
+                    $report['ipa_missing'][] = [
+                        'index' => $index + 1,
+                        'word' => $item['term'],
+                    ];
+                }
+            } elseif ($item['pronunciation'] !== '') {
+                import_add_ipa_to_map($ipaMap, $item['term'], $item['pronunciation']);
+            }
 
             if (!$dryRun) {
                 $insert->execute([
@@ -444,6 +981,10 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
         if (!$dryRun) {
             $pdo->commit();
         }
+
+        if ($ipaCacheChanged) {
+            import_save_ipa_cache($ipaCache);
+        }
     } catch (Throwable $exception) {
         if (!$dryRun && $pdo->inTransaction()) {
             $pdo->rollBack();
@@ -471,6 +1012,13 @@ function import_render_report(array $report): string
             <div class="alert alert-info">
                 <?= $report['dry_run'] ? 'Sẽ tạo' : 'Đã tạo' ?> <?= count($report['created_sets']) ?> bộ từ theo <code>source_title</code>:
                 <?= import_h(implode(', ', array_map(static fn(array $set): string => (string) $set['title'], $report['created_sets']))) ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($report['auto_ipa'])): ?>
+            <div class="alert alert-secondary">
+                IPA tự động: đã thêm <?= count($report['ipa_generated'] ?? []) ?> mục, cập nhật <?= count($report['ipa_updated_existing'] ?? []) ?> mục đã có<?= !empty($report['ipa_missing']) ? ', chưa tìm được ' . count($report['ipa_missing']) . ' mục' : '' ?>.
+                Tool bỏ qua phần trong ngoặc như <code>(n)</code>, <code>(adj)</code> trước khi tra IPA.
             </div>
         <?php endif; ?>
 
@@ -545,6 +1093,10 @@ function import_render_report(array $report): string
     return (string) ob_get_clean();
 }
 
+if (defined('IMPORT_VOCAB_TO_DB_LIBRARY_ONLY') && IMPORT_VOCAB_TO_DB_LIBRARY_ONLY) {
+    return;
+}
+
 if ($isCli) {
     $options = [];
     $positionalJson = null;
@@ -584,6 +1136,8 @@ if ($isCli) {
     $userId = max(0, (int) ($options['user-id'] ?? 0));
     $jsonFile = (string) ($options['json'] ?? $positionalJson ?? DEFAULT_JSON_FILE);
     $dryRun = filter_var($options['dry-run'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $autoIpa = !filter_var($options['no-ipa'] ?? false, FILTER_VALIDATE_BOOLEAN);
+    $onlineIpa = !filter_var($options['no-online-ipa'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
     if (!$pdo) {
         fwrite(STDERR, "Khong ket noi duoc database.\n");
@@ -597,7 +1151,7 @@ if ($isCli) {
             $userId = import_get_default_user_id($pdo);
         }
 
-        $report = import_run($pdo, $jsonFile, $setId, $dryRun, $groupByTitle, $userId ?: null);
+        $report = import_run($pdo, $jsonFile, $setId, $dryRun, $groupByTitle, $userId ?: null, $autoIpa, $onlineIpa);
         echo json_encode([
             'ok' => true,
             'mode' => $report['group_by_title'] ? 'by_source_title' : 'single_set',
@@ -607,6 +1161,11 @@ if ($isCli) {
             'dry_run' => $report['dry_run'],
             'total_json' => $report['total_json'],
             'created_sets' => count($report['created_sets']),
+            'auto_ipa' => $report['auto_ipa'],
+            'online_ipa' => $report['online_ipa'],
+            'ipa_generated' => count($report['ipa_generated']),
+            'ipa_updated_existing' => count($report['ipa_updated_existing']),
+            'ipa_missing' => count($report['ipa_missing']),
             'inserted' => count($report['inserted']),
             'skipped_db' => count($report['skipped_db']),
             'skipped_json' => count($report['skipped_json']),
