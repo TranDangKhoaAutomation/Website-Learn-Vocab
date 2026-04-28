@@ -101,16 +101,32 @@ include __DIR__ . '/../includes/navbar.php';
             </div>
 
             <div class="study-actions">
-                <button class="btn btn-outline-secondary" id="fcPrev" type="button"><i class="bi bi-chevron-left"></i> Previous</button>
-                <div class="d-flex gap-2 flex-wrap justify-content-center">
+                <div class="study-action-left">
+                    <button class="btn btn-outline-secondary" id="fcPrev" type="button"><i class="bi bi-chevron-left"></i> Previous</button>
+                    <button class="btn flashcard-autoplay-btn" id="fcAutoRun" type="button" title="Tự động chạy" aria-label="Tự động chạy" aria-pressed="false">
+                        <i class="bi bi-play-fill"></i>
+                    </button>
+                </div>
+                <div class="study-action-center">
                     <button class="btn btn-outline-danger" id="fcWrong" type="button">I don't know</button>
                     <button class="btn btn-success" id="fcKnow" type="button">I know</button>
                 </div>
                 <button class="btn btn-outline-secondary" id="fcNext" type="button">Next <i class="bi bi-chevron-right"></i></button>
             </div>
-            <div class="flashcard-auto-actions">
-                <button class="btn btn-warning" id="fcAutoRun" type="button"><i class="bi bi-play-fill"></i> Tự động chạy</button>
-                <span>Tự đọc từ, lật thẻ và chuyển sang thẻ tiếp theo chậm hơn.</span>
+            <div class="flashcard-complete" id="flashcardComplete" hidden>
+                <div>
+                    <span class="complete-kicker"><i class="bi bi-check-circle"></i> Hoàn thành</span>
+                    <h3>Bạn đã học xong bộ flashcard này.</h3>
+                    <p>Chọn chế độ tiếp theo hoặc học lại bộ thẻ từ đầu.</p>
+                </div>
+                <div class="complete-actions">
+                    <button class="btn btn-primary" id="fcRestart" type="button"><i class="bi bi-arrow-clockwise"></i> Học lại</button>
+                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/learn.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-mortarboard"></i> Learn</a>
+                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/test.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-ui-checks-grid"></i> Test</a>
+                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/match.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-intersect"></i> Match</a>
+                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/blocks.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-boxes"></i> Blocks</a>
+                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/blast.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-rocket-takeoff"></i> Blast</a>
+                </div>
             </div>
             <div class="small text-muted mt-3" id="speechNotice" hidden>Trình duyệt của bạn không hỗ trợ đọc văn bản.</div>
         </section>

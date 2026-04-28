@@ -258,61 +258,81 @@
 
         const synth = window.speechSynthesis;
         synth.cancel();
-        synth.resume();
+        if (synth.paused) {
+            synth.resume();
+        }
 
         if (requestId !== speechRequestId) return;
 
         let started = false;
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'en-US';
-        utterance.rate = 0.95;
-        utterance.pitch = 1;
+        if (notice) notice.hidden = true;
 
-        const voices = synth.getVoices ? synth.getVoices() : [];
-        const englishVoice = voices.find((voice) => voice.lang === 'en-US') || voices.find((voice) => /^en[-_]/i.test(voice.lang));
-        if (englishVoice) {
-            utterance.voice = englishVoice;
+        function makeUtterance() {
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            utterance.lang = 'en-US';
+            utterance.rate = 0.92;
+            utterance.pitch = 1;
+
+            const voices = synth.getVoices ? synth.getVoices() : [];
+            const englishVoice = voices.find((voice) => voice.lang === 'en-US') || voices.find((voice) => /^en[-_]/i.test(voice.lang));
+            if (englishVoice) {
+                utterance.voice = englishVoice;
+            }
+
+            utterance.onstart = () => {
+                started = true;
+                if (notice) notice.hidden = true;
+            };
+            utterance.onend = () => {
+                if (requestId === speechRequestId && synth.paused) {
+                    synth.resume();
+                }
+            };
+            utterance.onerror = (event) => {
+                if (requestId !== speechRequestId || ['canceled', 'interrupted'].includes(event.error)) {
+                    return;
+                }
+                if (synth.paused) {
+                    synth.resume();
+                }
+            };
+
+            return utterance;
         }
-
-        utterance.onstart = () => {
-            started = true;
-            if (notice) notice.hidden = true;
-        };
-        utterance.onend = () => {
-            if (requestId === speechRequestId && synth.paused) {
-                synth.resume();
-            }
-        };
-        utterance.onerror = (event) => {
-            if (requestId !== speechRequestId || ['canceled', 'interrupted'].includes(event.error)) {
-                return;
-            }
-            if (notice) {
-                notice.textContent = 'Không thể phát âm lúc này. Hãy bấm loa hoặc thử lại một lần nữa.';
-                notice.hidden = false;
-            }
-            if (synth.paused) {
-                synth.resume();
-            }
-        };
-
-        synth.speak(utterance);
-        synth.resume();
 
         speechTimer = setTimeout(() => {
             speechTimer = null;
-            if (requestId === speechRequestId && !started && !synth.speaking) {
-                const retryUtterance = new SpeechSynthesisUtterance(cleanText);
-                retryUtterance.lang = 'en-US';
-                retryUtterance.rate = 0.95;
-                retryUtterance.pitch = 1;
-                synth.cancel();
-                synth.speak(retryUtterance);
+            if (requestId !== speechRequestId) return;
+
+            try {
+                synth.speak(makeUtterance());
+                if (synth.paused) {
+                    synth.resume();
+                }
+            } catch (error) {
+                if (notice) {
+                    notice.textContent = 'Không thể phát âm lúc này. Hãy bấm loa hoặc thử lại một lần nữa.';
+                    notice.hidden = false;
+                }
+                return;
             }
-            if (requestId === speechRequestId && synth.paused) {
-                synth.resume();
-            }
-        }, 450);
+
+            window.setTimeout(() => {
+                if (requestId !== speechRequestId || started || synth.speaking) return;
+                try {
+                    synth.cancel();
+                    synth.speak(makeUtterance());
+                    if (synth.paused) {
+                        synth.resume();
+                    }
+                } catch (error) {
+                    if (notice) {
+                        notice.textContent = 'Không thể phát âm lúc này. Hãy bấm loa hoặc thử lại một lần nữa.';
+                        notice.hidden = false;
+                    }
+                }
+            }, 520);
+        }, 70);
     }
 
     window.speakText = speakText;
@@ -331,6 +351,7 @@
             flipped: false,
             termReadOnFront: false,
             autoRunning: false,
+            completed: false,
             settings: {
                 autoSpeak: boolSetting('flashcard_auto_speak', false),
                 speakerEnabled: boolSetting('flashcard_speaker_enabled', true),
@@ -353,6 +374,8 @@
         const exampleToggle = $('#flashcardSpeakExample');
         const ipaToggle = $('#flashcardShowIpa');
         const autoRunButton = $('#fcAutoRun');
+        const completeEl = $('#flashcardComplete');
+        const restartButton = $('#fcRestart');
         let autoRunTimer = null;
 
         function updatePronunciation(card) {
@@ -383,9 +406,15 @@
             }
         }
 
+        function hideCompletion() {
+            state.completed = false;
+            if (completeEl) completeEl.hidden = true;
+        }
+
         function render(shouldSpeak) {
             const card = cards[state.index];
             if (!card) return;
+            hideCompletion();
             state.flipped = false;
             state.termReadOnFront = false;
             cardEl?.classList.remove('flipped');
@@ -406,12 +435,11 @@
 
         function syncAutoRunButton() {
             if (!autoRunButton) return;
-            autoRunButton.classList.toggle('btn-warning', !state.autoRunning);
-            autoRunButton.classList.toggle('btn-danger', state.autoRunning);
+            autoRunButton.classList.toggle('is-running', state.autoRunning);
             autoRunButton.setAttribute('aria-pressed', state.autoRunning ? 'true' : 'false');
-            autoRunButton.innerHTML = state.autoRunning
-                ? '<i class="bi bi-stop-fill"></i> Dừng tự động'
-                : '<i class="bi bi-play-fill"></i> Tự động chạy';
+            autoRunButton.setAttribute('aria-label', state.autoRunning ? 'Dừng tự động chạy' : 'Tự động chạy');
+            autoRunButton.setAttribute('title', state.autoRunning ? 'Dừng tự động chạy' : 'Tự động chạy');
+            autoRunButton.innerHTML = state.autoRunning ? '<i class="bi bi-stop-fill"></i>' : '<i class="bi bi-play-fill"></i>';
         }
 
         function clearAutoRunTimer() {
@@ -436,6 +464,27 @@
                 autoRunTimer = null;
                 callback();
             }, delay);
+        }
+
+        function showCompletion() {
+            state.completed = true;
+            stopAutoRun();
+            stopSpeaking();
+            if (counter) counter.textContent = `${cards.length}/${cards.length}`;
+            if (progress) progress.style.width = '100%';
+            if (completeEl) {
+                completeEl.hidden = false;
+                completeEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+
+        function restartFlashcards() {
+            stopAutoRun();
+            stopSpeaking();
+            state.index = 0;
+            state.completed = false;
+            render(true);
+            cardEl?.focus({ preventScroll: true });
         }
 
         function runCurrentCardAutomatically() {
@@ -465,7 +514,12 @@
                 scheduleAutoRun(() => {
                     if (!state.autoRunning) return;
 
-                    state.index = (state.index + 1) % cards.length;
+                    if (state.index >= cards.length - 1) {
+                        showCompletion();
+                        return;
+                    }
+
+                    state.index += 1;
                     render(false);
                     scheduleAutoRun(runCurrentCardAutomatically, 900);
                 }, nextDelay);
@@ -473,6 +527,10 @@
         }
 
         function startAutoRun() {
+            if (state.completed || (completeEl && !completeEl.hidden)) {
+                state.index = 0;
+            }
+            hideCompletion();
             state.autoRunning = true;
             syncAutoRunButton();
             stopSpeaking();
@@ -482,6 +540,10 @@
         function move(delta) {
             stopAutoRun();
             stopSpeaking();
+            if (delta > 0 && state.index >= cards.length - 1) {
+                showCompletion();
+                return;
+            }
             state.index = (state.index + delta + cards.length) % cards.length;
             render(true);
         }
@@ -537,6 +599,7 @@
         $('#fcNext')?.addEventListener('click', () => move(1));
         $('#fcKnow')?.addEventListener('click', () => saveAndMove('correct'));
         $('#fcWrong')?.addEventListener('click', () => saveAndMove('wrong'));
+        restartButton?.addEventListener('click', restartFlashcards);
         autoRunButton?.addEventListener('click', () => {
             if (state.autoRunning) {
                 stopAutoRun();
