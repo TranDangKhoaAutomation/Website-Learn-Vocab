@@ -38,6 +38,7 @@ if ($isCli) {
 
 const DEFAULT_JSON_FILE = __DIR__ . '/vocab.json';
 const IPA_CACHE_FILE = __DIR__ . '/ipa_cache.json';
+const IPA_CACHE_VERSION = 2;
 const IPA_LOOKUP_TIMEOUT = 5;
 
 function import_h(mixed $value): string
@@ -221,6 +222,7 @@ function import_clean_ipa(mixed $value): string
     }
 
     $ipa = str_replace(['[', ']'], ['/', '/'], $ipa);
+    $ipa = str_replace('ɹ', 'r', $ipa);
     $ipa = preg_replace('/\s+/u', ' ', (string) $ipa);
     $ipa = trim((string) $ipa);
 
@@ -231,12 +233,70 @@ function import_clean_ipa(mixed $value): string
     return $ipa;
 }
 
+function import_is_usable_ipa(string $ipa): bool
+{
+    $ipa = import_clean_ipa($ipa);
+
+    if ($ipa === '') {
+        return false;
+    }
+
+    $inner = trim($ipa, "/ \t\n\r\0\x0B");
+
+    if ($inner === '' || mb_strlen($inner, 'UTF-8') < 2) {
+        return false;
+    }
+
+    return !str_contains($inner, '-');
+}
+
+function import_pick_best_ipa(array $candidates): string
+{
+    $ranked = [];
+
+    foreach ($candidates as $candidate) {
+        $ipa = import_clean_ipa($candidate);
+
+        if ($ipa === '') {
+            continue;
+        }
+
+        $score = mb_strlen($ipa, 'UTF-8');
+
+        if (!import_is_usable_ipa($ipa)) {
+            $score -= 1000;
+        }
+
+        if (str_contains($ipa, 'ˈ')) {
+            $score += 20;
+        }
+
+        if (str_contains($ipa, '(ˌ)') || str_contains($ipa, '(ˈ)')) {
+            $score -= 80;
+        } elseif (str_contains($ipa, '(')) {
+            $score -= 8;
+        }
+
+        $ranked[] = ['ipa' => $ipa, 'score' => $score];
+    }
+
+    usort($ranked, static fn(array $a, array $b): int => $b['score'] <=> $a['score']);
+
+    foreach ($ranked as $candidate) {
+        if (import_is_usable_ipa($candidate['ipa'])) {
+            return $candidate['ipa'];
+        }
+    }
+
+    return '';
+}
+
 function import_add_ipa_to_map(array &$map, string $term, string $ipa): void
 {
     $ipa = import_clean_ipa($ipa);
     $key = import_ipa_key($term);
 
-    if ($key !== '' && $ipa !== '' && !isset($map[$key])) {
+    if ($key !== '' && import_is_usable_ipa($ipa) && !isset($map[$key])) {
         $map[$key] = $ipa;
     }
 }
@@ -310,7 +370,12 @@ function import_load_ipa_cache(): array
         return ['entries' => [], 'misses' => []];
     }
 
+    if ((int) ($decoded['version'] ?? 0) !== IPA_CACHE_VERSION) {
+        return ['version' => IPA_CACHE_VERSION, 'entries' => [], 'misses' => []];
+    }
+
     return [
+        'version' => (int) ($decoded['version'] ?? 0),
         'entries' => is_array($decoded['entries'] ?? null) ? $decoded['entries'] : [],
         'misses' => is_array($decoded['misses'] ?? null) ? $decoded['misses'] : [],
     ];
@@ -319,6 +384,7 @@ function import_load_ipa_cache(): array
 function import_save_ipa_cache(array $cache): void
 {
     $payload = [
+        'version' => IPA_CACHE_VERSION,
         'updated_at' => date(DATE_ATOM),
         'source' => 'https://api.dictionaryapi.dev, https://api.datamuse.com',
         'entries' => $cache['entries'] ?? [],
@@ -378,6 +444,8 @@ function import_extract_ipa_from_dictionary(array $decoded): string
         return '';
     }
 
+    $candidates = [];
+
     foreach ($decoded as $entry) {
         if (!is_array($entry)) {
             continue;
@@ -391,18 +459,18 @@ function import_extract_ipa_from_dictionary(array $decoded): string
             $ipa = import_clean_ipa($phonetic['text'] ?? '');
 
             if ($ipa !== '') {
-                return $ipa;
+                $candidates[] = $ipa;
             }
         }
 
         $ipa = import_clean_ipa($entry['phonetic'] ?? '');
 
         if ($ipa !== '') {
-            return $ipa;
+            $candidates[] = $ipa;
         }
     }
 
-    return '';
+    return import_pick_best_ipa($candidates);
 }
 
 function import_fetch_word_ipa_online(string $word): string
@@ -476,7 +544,8 @@ function import_arpabet_phone_to_ipa(string $phone, string $stress): string
 function import_arpabet_to_ipa(string $arpabet): string
 {
     $tokens = preg_split('/\s+/u', trim($arpabet)) ?: [];
-    $ipa = '';
+    $parts = [];
+    $lastVowelIndex = -1;
 
     foreach ($tokens as $token) {
         if (!preg_match('/^([A-Z]+)([012])?$/', $token, $matches)) {
@@ -492,13 +561,21 @@ function import_arpabet_to_ipa(string $arpabet): string
         }
 
         if ($stress === '1') {
-            $converted = 'ˈ' . $converted;
+            $insertAt = max(0, $lastVowelIndex + 1);
+            array_splice($parts, $insertAt, 0, 'ˈ');
         } elseif ($stress === '2') {
-            $converted = 'ˌ' . $converted;
+            $insertAt = max(0, $lastVowelIndex + 1);
+            array_splice($parts, $insertAt, 0, 'ˌ');
         }
 
-        $ipa .= $converted;
+        $parts[] = $converted;
+
+        if ($stress !== '') {
+            $lastVowelIndex = count($parts) - 1;
+        }
     }
+
+    $ipa = implode('', $parts);
 
     return $ipa !== '' ? '/' . $ipa . '/' : '';
 }
@@ -564,8 +641,14 @@ function import_lookup_ipa_part(string $part, array &$ipaMap, array &$ipaCache, 
 
     if (isset($ipaCache['entries'][$key])) {
         $ipa = import_clean_ipa($ipaCache['entries'][$key]);
-        import_add_ipa_to_map($ipaMap, $key, $ipa);
-        return $ipa;
+
+        if (import_is_usable_ipa($ipa)) {
+            import_add_ipa_to_map($ipaMap, $key, $ipa);
+            return $ipa;
+        }
+
+        unset($ipaCache['entries'][$key]);
+        $cacheChanged = true;
     }
 
     if (!$onlineLookup) {
@@ -601,8 +684,14 @@ function import_generate_pronunciation(string $term, array &$ipaMap, array &$ipa
 
     if (isset($ipaCache['entries'][$key])) {
         $ipa = import_clean_ipa($ipaCache['entries'][$key]);
-        import_add_ipa_to_map($ipaMap, $key, $ipa);
-        return import_limit_text($ipa, 120);
+
+        if (import_is_usable_ipa($ipa)) {
+            import_add_ipa_to_map($ipaMap, $key, $ipa);
+            return import_limit_text($ipa, 120);
+        }
+
+        unset($ipaCache['entries'][$key]);
+        $cacheChanged = true;
     }
 
     $parts = import_term_parts_for_ipa($term);
@@ -835,7 +924,7 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
     $updateExistingIpa = $pdo->prepare('
         UPDATE flashcards
         SET pronunciation = ?
-        WHERE id = ? AND (pronunciation IS NULL OR pronunciation = "")
+        WHERE id = ?
     ');
 
     if (!$dryRun) {
@@ -885,7 +974,7 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
                     $targetSetTitle = (string) ($set['title'] ?? 'Imported Vocabulary');
                 }
 
-                if ($autoIpa && trim((string) ($duplicateInDb['pronunciation'] ?? '')) === '') {
+                if ($autoIpa && !import_is_usable_ipa((string) ($duplicateInDb['pronunciation'] ?? ''))) {
                     $generatedIpa = import_generate_pronunciation($item['term'], $ipaMap, $ipaCache, $ipaCacheChanged, $onlineIpa);
 
                     if ($generatedIpa !== '') {
@@ -982,7 +1071,7 @@ function import_run(PDO $pdo, string $jsonFile, int $setId, bool $dryRun, bool $
             $pdo->commit();
         }
 
-        if ($ipaCacheChanged) {
+        if (!$dryRun && $ipaCacheChanged) {
             import_save_ipa_cache($ipaCache);
         }
     } catch (Throwable $exception) {
@@ -1185,7 +1274,7 @@ $message = null;
 $reportHtml = '';
 $jsonFile = DEFAULT_JSON_FILE;
 $autoRun = isset($_POST['auto_run']);
-$dryRun = !$autoRun && isset($_POST['dry_run']);
+$dryRun = isset($_POST['dry_run']);
 $groupByTitle = $autoRun || ($_SERVER['REQUEST_METHOD'] === 'POST' ? isset($_POST['group_by_title']) : true);
 $selectedSetId = $autoRun ? 0 : max(0, (int) ($_POST['set_id'] ?? ($_GET['set_id'] ?? 0)));
 
@@ -1214,11 +1303,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $report = import_run($pdo, $jsonFile, $selectedSetId, $dryRun, $groupByTitle, $userId);
         $reportHtml = import_render_report($report);
+        $messageText = $dryRun
+            ? ($autoRun ? 'Tự động chạy ở chế độ kiểm tra, chưa ghi vào database.' : 'Đã kiểm tra file JSON, chưa ghi vào database.')
+            : ($autoRun ? 'Tự động chạy hoàn tất.' : 'Import hoàn tất.');
         $message = [
             'type' => 'success',
-            'text' => $dryRun ? 'Đã kiểm tra file JSON, chưa ghi vào database.' : 'Import hoàn tất.',
+            'text' => $messageText,
         ];
-        $message['text'] = $autoRun ? 'Tự động chạy hoàn tất.' : ($dryRun ? 'Đã kiểm tra file JSON, chưa ghi vào database.' : 'Import hoàn tất.');
     } catch (Throwable $exception) {
         $message = [
             'type' => 'danger',
