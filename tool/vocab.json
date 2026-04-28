@@ -1,0 +1,183 @@
+{
+    "ok": true,
+    "updated_at": "2026-04-28T17:23:24+02:00",
+    "last_source_file": "source.html",
+    "last_source_title": "part 3 - 22T01 (Q 32 - 40)",
+    "total": 32,
+    "count_en": 32,
+    "count_vi": 31,
+    "last_run": {
+        "found_in_source": 17,
+        "added": 17,
+        "skipped_existing": 0,
+        "missing_meaning": [
+            {
+                "index": 13,
+                "word": "hire (v)"
+            }
+        ],
+        "missing_word": []
+    },
+    "data": [
+        {
+            "word": "legal consulting firm",
+            "meaning": "Công ty tư vấn pháp lý",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "architecture firm",
+            "meaning": "công ty kiến trúc",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "book publishing company",
+            "meaning": "Công ty xuất bản sách",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "be concerned (adj)",
+            "meaning": "quan tâm, lo lắng",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "length (n)",
+            "meaning": "độ dài",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "submit (v)",
+            "meaning": "nộp",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "measure (v)",
+            "meaning": "đo lường",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "encourage (sbd to V)",
+            "meaning": "khuyến khích ai làm gì",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "journalist (n)",
+            "meaning": "nhà báo",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "renovation",
+            "meaning": "sự cải tạo",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "painting (n)",
+            "meaning": "bức họa",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "temporary (adj)",
+            "meaning": "tạm thời, nhất thời",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "electronics (n)",
+            "meaning": "đồ điện tử",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "automobile (n)",
+            "meaning": "xe ô tô (=car)",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "intranet (n)",
+            "meaning": "mạng nội bộ",
+            "source_title": "part 3 - 22T01 (Q 41 - 55)"
+        },
+        {
+            "word": "colleague (n)",
+            "meaning": "đồng nghiệp",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "administrative assistant (n)",
+            "meaning": "trợ lý hành chính",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "director (n)",
+            "meaning": "giám đốc",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "reserve (v)",
+            "meaning": "đặt trước",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "responsible for (something) (adj)",
+            "meaning": "chịu trách nhiệm cho cái gì",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "budget (n)",
+            "meaning": "ngân sách",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "review (v)",
+            "meaning": "xem lại",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "application (n)",
+            "meaning": "đơn xin",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "newsletter (n)",
+            "meaning": "bản tin",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "employee handbook (n)",
+            "meaning": "sổ tay nhân viên",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "trade show (n)",
+            "meaning": "Triển lãm thương mại",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "product catalog (n)",
+            "meaning": "(n) danh mục sản phẩm",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "hire (v)",
+            "meaning": null,
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "press release (n)",
+            "meaning": "thông cáo báo chí",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "additional detail (n)",
+            "meaning": "chi tiết bổ sung",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "business card (n)",
+            "meaning": "danh thiếp",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        },
+        {
+            "word": "engineer (n)",
+            "meaning": "kỹ sư",
+            "source_title": "part 3 - 22T01 (Q 32 - 40)"
+        }
+    ]
+}
