@@ -1,5 +1,5 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/settings.php';
 $flash = get_flash();
 $initial = mb_strtoupper(mb_substr(current_user_name(), 0, 1, 'UTF-8'), 'UTF-8');
 ?>
@@ -10,8 +10,8 @@ $initial = mb_strtoupper(mb_substr(current_user_name(), 0, 1, 'UTF-8'), 'UTF-8')
                 <i class="bi bi-list"></i>
             </button>
             <div>
-                <div class="topbar-title"><?= e($pageTitle ?? APP_NAME) ?></div>
-                <div class="topbar-subtitle">Học từ vựng tiếng Anh mỗi ngày</div>
+                <div class="topbar-title"><?= e($pageTitle ?? site_name()) ?></div>
+                <div class="topbar-subtitle"><?= e(site_tagline()) ?></div>
             </div>
         </div>
         <div class="topbar-actions">
@@ -37,8 +37,12 @@ $initial = mb_strtoupper(mb_substr(current_user_name(), 0, 1, 'UTF-8'), 'UTF-8')
                     <div class="dropdown-divider"></div>
                     <a class="dropdown-item" href="<?= app_url('pages/profile.php') ?>"><i class="bi bi-person-circle"></i> Profile</a>
                     <a class="dropdown-item" href="<?= app_url('pages/sets.php') ?>"><i class="bi bi-collection"></i> My Sets</a>
-                    <a class="dropdown-item" href="<?= app_url('pages/library.php') ?>"><i class="bi bi-globe2"></i> Public Library</a>
-                    <a class="dropdown-item" href="<?= app_url('pages/feedback.php') ?>"><i class="bi bi-chat-dots"></i> Feedback</a>
+                    <?php if (settings_enabled('public_library_enabled', true)): ?>
+                        <a class="dropdown-item" href="<?= app_url('pages/library.php') ?>"><i class="bi bi-globe2"></i> Public Library</a>
+                    <?php endif; ?>
+                    <?php if (settings_enabled('feedback_enabled', true)): ?>
+                        <a class="dropdown-item" href="<?= app_url('pages/feedback.php') ?>"><i class="bi bi-chat-dots"></i> Feedback</a>
+                    <?php endif; ?>
                     <button class="dropdown-item" type="button" id="themeToggle"><i class="bi bi-moon"></i> Dark / Light mode</button>
                     <?php if (current_user_role() === 'admin'): ?>
                         <div class="dropdown-divider"></div>

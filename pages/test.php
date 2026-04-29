@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/set_access.php';
+require_once __DIR__ . '/../includes/settings.php';
 
 $pageTitle = 'Test';
 $userId = current_user_id();
@@ -9,6 +10,7 @@ $sets = [];
 $cards = [];
 $selectedSetId = max(0, (int) ($_GET['set_id'] ?? 0));
 $selectedSet = null;
+$questionLimit = max(1, (int) get_setting('default_test_questions', 20));
 
 if ($pdo) {
     $sets = get_accessible_sets($pdo, $userId);
@@ -65,11 +67,11 @@ include __DIR__ . '/../includes/navbar.php';
         <a class="btn btn-primary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
     </div>
 <?php else: ?>
-    <section class="panel" id="testApp" data-set-id="<?= (int) $selectedSetId ?>">
+    <section class="panel" id="testApp" data-set-id="<?= (int) $selectedSetId ?>" data-question-limit="<?= (int) $questionLimit ?>">
         <div class="panel-header">
             <div>
                 <h2><?= e($selectedSet['title']) ?></h2>
-                <p id="testMeta">Bài test sẽ được tạo ngẫu nhiên từ <?= count($cards) ?> flashcards.</p>
+                <p id="testMeta">Bài test sẽ tạo tối đa <?= (int) min(count($cards), $questionLimit) ?> câu từ <?= count($cards) ?> flashcards.</p>
             </div>
             <button class="btn btn-outline-primary" id="testRestart" type="button">Làm lại</button>
         </div>

@@ -1,9 +1,13 @@
 <?php
 require_once __DIR__ . '/config/database.php';
 require_once __DIR__ . '/includes/csrf.php';
+require_once __DIR__ . '/includes/settings.php';
 
 if (!empty($_SESSION['user_id'])) {
-    redirect('dashboard.php');
+    $redirectTarget = settings_enabled('maintenance_mode', false) && current_user_role() !== 'admin'
+        ? 'index.php'
+        : 'dashboard.php';
+    redirect($redirectTarget);
 }
 
 if (!headers_sent()) {
@@ -11,6 +15,7 @@ if (!headers_sent()) {
 }
 
 $errors = [];
+$registrationEnabled = settings_enabled('registration_enabled', true);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -38,11 +43,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['user_id'] = (int) $user['id'];
             $_SESSION['user_name'] = $user['name'];
             $_SESSION['user_email'] = $user['email'];
-            $_SESSION['user_role'] = $user['role'] ?? 'user';
+            $role = $user['role'] ?? 'user';
+            $_SESSION['user_role'] = $role;
             $updateLogin = $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
             $updateLogin->execute([(int) $user['id']]);
             set_flash('success', 'Đăng nhập thành công.');
-            redirect('dashboard.php');
+            $redirectTarget = settings_enabled('maintenance_mode', false) && $role !== 'admin'
+                ? 'index.php'
+                : 'dashboard.php';
+            redirect($redirectTarget);
             }
         }
 
@@ -59,7 +68,7 @@ $flash = get_flash();
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Đăng nhập - <?= APP_NAME ?></title>
+    <title>Đăng nhập - <?= e(site_name()) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
@@ -71,7 +80,7 @@ $flash = get_flash();
         <div class="auth-hero-content">
             <div class="auth-brand-row">
                 <div class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></div>
-                <span><?= APP_NAME ?></span>
+                <span><?= e(site_name()) ?></span>
             </div>
             <span class="auth-eyebrow">Học tiếng Anh chủ động</span>
             <h1>Ghi nhớ từ vựng thông minh hơn.</h1>
@@ -124,9 +133,11 @@ $flash = get_flash();
             <button class="btn btn-primary auth-submit w-100" type="submit">Đăng nhập <i class="bi bi-arrow-right"></i></button>
         </form>
 
-        <div class="auth-switch">
-            Chưa có tài khoản? <a href="<?= app_url('register.php') ?>" data-auth-transition="register">Đăng ký miễn phí</a>
-        </div>
+        <?php if ($registrationEnabled): ?>
+            <div class="auth-switch">
+                Chưa có tài khoản? <a href="<?= app_url('register.php') ?>" data-auth-transition="register">Đăng ký miễn phí</a>
+            </div>
+        <?php endif; ?>
     </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

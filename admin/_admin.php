@@ -73,7 +73,7 @@ function admin_header(string $title, string $active = ''): void
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title><?= e($title) ?> - Admin</title>
+        <title><?= e($title) ?> - <?= e(site_name()) ?> Admin</title>
         <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
         <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
         <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
@@ -81,7 +81,7 @@ function admin_header(string $title, string $active = ''): void
     <body data-base-url="<?= BASE_URL ?>" class="admin-body">
     <div class="app-shell admin-shell">
         <aside class="sidebar admin-sidebar" id="sidebar">
-            <div class="brand"><div class="brand-icon"><i class="bi bi-shield-lock"></i></div><span>Admin Panel</span></div>
+            <div class="brand"><div class="brand-icon"><i class="bi bi-shield-lock"></i></div><span><?= e(site_name()) ?> Admin</span></div>
             <nav class="sidebar-nav">
                 <?php foreach ($items as $key => $item): ?>
                     <a class="nav-link <?= $active === $key ? 'active' : '' ?>" href="<?= app_url('admin/' . ($key === 'index' ? 'index.php' : $key . '.php')) ?>">
@@ -98,7 +98,7 @@ function admin_header(string $title, string $active = ''): void
                     <button class="btn icon-btn d-lg-none" id="sidebarToggle" type="button"><i class="bi bi-list"></i></button>
                     <div>
                         <div class="topbar-title"><?= e($title) ?></div>
-                        <div class="topbar-subtitle">Quản trị hệ thống học tiếng Anh</div>
+                        <div class="topbar-subtitle"><?= e(site_tagline()) ?></div>
                     </div>
                 </div>
                 <div class="topbar-actions">

@@ -1,10 +1,10 @@
 <?php
-require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/settings.php';
 ?>
 <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand">
         <span class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></span>
-        <span><?= APP_NAME ?></span>
+        <span><?= e(site_name()) ?></span>
     </div>
     <nav class="sidebar-nav">
         <a class="nav-link <?= is_active('dashboard.php') ?>" href="<?= app_url('dashboard.php') ?>">
@@ -13,9 +13,11 @@ require_once __DIR__ . '/../config/config.php';
         <a class="nav-link <?= is_active('pages/sets.php') ?>" href="<?= app_url('pages/sets.php') ?>">
             <i class="bi bi-collection"></i><span>My Sets</span>
         </a>
-        <a class="nav-link <?= is_active('pages/library.php') ?>" href="<?= app_url('pages/library.php') ?>">
-            <i class="bi bi-globe2"></i><span>Library</span>
-        </a>
+        <?php if (settings_enabled('public_library_enabled', true)): ?>
+            <a class="nav-link <?= is_active('pages/library.php') ?>" href="<?= app_url('pages/library.php') ?>">
+                <i class="bi bi-globe2"></i><span>Library</span>
+            </a>
+        <?php endif; ?>
         <a class="nav-link <?= is_active('pages/flashcards.php') ?>" href="<?= app_url('pages/flashcards.php') ?>">
             <i class="bi bi-card-text"></i><span>Flashcards</span>
         </a>
@@ -37,9 +39,11 @@ require_once __DIR__ . '/../config/config.php';
         <a class="nav-link <?= is_active('pages/profile.php') ?>" href="<?= app_url('pages/profile.php') ?>">
             <i class="bi bi-person-circle"></i><span>Profile</span>
         </a>
-        <a class="nav-link <?= is_active('pages/feedback.php') ?>" href="<?= app_url('pages/feedback.php') ?>">
-            <i class="bi bi-chat-dots"></i><span>Feedback</span>
-        </a>
+        <?php if (settings_enabled('feedback_enabled', true)): ?>
+            <a class="nav-link <?= is_active('pages/feedback.php') ?>" href="<?= app_url('pages/feedback.php') ?>">
+                <i class="bi bi-chat-dots"></i><span>Feedback</span>
+            </a>
+        <?php endif; ?>
         <?php if (current_user_role() === 'admin'): ?>
             <a class="nav-link" href="<?= app_url('admin/index.php') ?>">
                 <i class="bi bi-shield-lock"></i><span>Admin</span>

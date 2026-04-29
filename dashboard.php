@@ -14,6 +14,8 @@ $stats = [
 $recentSets = [];
 $announcements = [];
 $achievementRows = [];
+$leaderboardRows = [];
+$leaderboardEnabled = settings_enabled('leaderboard_enabled', true);
 $todayGoal = ['cards' => 0, 'minutes' => 0, 'cards_goal' => 20, 'minutes_goal' => 10, 'streak' => 0];
 
 if ($pdo) {
@@ -77,6 +79,19 @@ if ($pdo) {
     $stmt = $pdo->prepare('SELECT a.* FROM user_achievements ua JOIN achievements a ON a.id=ua.achievement_id WHERE ua.user_id=? ORDER BY ua.earned_at DESC LIMIT 5');
     $stmt->execute([$userId]);
     $achievementRows = $stmt->fetchAll();
+
+    if ($leaderboardEnabled) {
+        $stmt = $pdo->query('
+            SELECT u.name, COALESCE(SUM(up.correct_count + up.wrong_count), 0) total
+            FROM users u
+            LEFT JOIN user_progress up ON up.user_id = u.id
+            GROUP BY u.id
+            HAVING total > 0
+            ORDER BY total DESC
+            LIMIT 5
+        ');
+        $leaderboardRows = $stmt->fetchAll();
+    }
 }
 
 include __DIR__ . '/includes/header.php';
@@ -150,6 +165,18 @@ include __DIR__ . '/includes/navbar.php';
             <?php if (!$achievementRows): ?><p class="text-muted mb-0">Hoàn thành bài học đầu tiên để nhận huy hiệu.</p><?php endif; ?>
             <?php foreach ($achievementRows as $achievement): ?><div class="admin-mini-row"><span><i class="bi <?= e($achievement['icon']) ?>"></i> <?= e($achievement['name']) ?></span></div><?php endforeach; ?>
         </section>
+        <?php if ($leaderboardEnabled): ?>
+            <section class="panel mt-4">
+                <h2>Leaderboard</h2>
+                <?php if (!$leaderboardRows): ?><p class="text-muted mb-0">Chưa có dữ liệu học tập để xếp hạng.</p><?php endif; ?>
+                <?php foreach ($leaderboardRows as $index => $row): ?>
+                    <div class="admin-mini-row">
+                        <div><strong>#<?= $index + 1 ?> <?= e($row['name']) ?></strong><small>Lượt học</small></div>
+                        <span class="badge text-bg-primary"><?= (int) $row['total'] ?></span>
+                    </div>
+                <?php endforeach; ?>
+            </section>
+        <?php endif; ?>
     </div>
 </div>
 

@@ -1059,12 +1059,13 @@
         const resultEl = $('#testResult');
         const submitButton = $('#testSubmit');
         const restartButton = $('#testRestart');
+        const questionLimit = Math.max(1, Number(app.dataset.questionLimit || cards.length));
         let questions = [];
         let submitted = false;
 
         function buildTestQuestions() {
             const types = ['choice', 'true_false', 'fill_blank', 'written'];
-            return shuffle(cards).map((card, index) => {
+            return shuffle(cards).slice(0, Math.min(cards.length, questionLimit)).map((card, index) => {
                 const type = types[index % types.length];
                 if (type === 'choice') {
                     return {
@@ -1333,9 +1334,10 @@
         const feedbackEl = $('#blastFeedback');
         const resultEl = $('#blastResult');
         const restartButton = $('#blastRestart');
+        const duration = Math.max(10, Number(app.dataset.duration || 60));
         let score = 0;
         let answered = 0;
-        let timeLeft = 60;
+        let timeLeft = duration;
         let currentCard = null;
         let timerId = null;
         let finished = false;
@@ -1343,11 +1345,11 @@
         function startGame() {
             score = 0;
             answered = 0;
-            timeLeft = 60;
+            timeLeft = duration;
             finished = false;
             scoreEl.textContent = '0';
             answeredEl.textContent = '0';
-            timerEl.textContent = '60s';
+            timerEl.textContent = `${duration}s`;
             resultEl.hidden = true;
             feedbackEl.hidden = true;
             clearInterval(timerId);

@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/set_access.php';
+require_once __DIR__ . '/../includes/settings.php';
 
 $pageTitle = 'Blast';
 $userId = current_user_id();
@@ -9,6 +10,7 @@ $sets = [];
 $cards = [];
 $selectedSetId = max(0, (int) ($_GET['set_id'] ?? 0));
 $selectedSet = null;
+$blastSeconds = max(10, (int) get_setting('blast_default_seconds', 60));
 
 if ($pdo) {
     $sets = get_accessible_sets($pdo, $userId);
@@ -65,14 +67,14 @@ include __DIR__ . '/../includes/navbar.php';
         <a class="btn btn-primary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
     </div>
 <?php else: ?>
-    <section class="panel blast-panel" id="blastApp" data-set-id="<?= (int) $selectedSetId ?>">
+    <section class="panel blast-panel" id="blastApp" data-set-id="<?= (int) $selectedSetId ?>" data-duration="<?= (int) $blastSeconds ?>">
         <div class="game-head">
             <div>
                 <h2><?= e($selectedSet['title']) ?></h2>
-                <p>Thời gian 60 giây. Trả lời đúng để cộng điểm.</p>
+                <p>Thời gian <?= (int) $blastSeconds ?> giây. Trả lời đúng để cộng điểm.</p>
             </div>
             <div class="game-stats">
-                <span><i class="bi bi-clock"></i> <strong id="blastTimer">60s</strong></span>
+                <span><i class="bi bi-clock"></i> <strong id="blastTimer"><?= (int) $blastSeconds ?>s</strong></span>
                 <span><i class="bi bi-check2-circle"></i> <strong id="blastAnswered">0</strong></span>
                 <span><i class="bi bi-stars"></i> <strong id="blastScore">0</strong></span>
                 <button class="btn btn-sm btn-outline-primary" id="blastRestart" type="button">Chơi lại</button>

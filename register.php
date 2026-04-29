@@ -11,11 +11,13 @@ if (!headers_sent()) {
     header('Content-Type: text/html; charset=utf-8');
 }
 
+enforce_maintenance_mode();
+$registrationEnabled = settings_enabled('registration_enabled', true);
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    if (!get_setting('registration_enabled', true)) {
+    if (!$registrationEnabled) {
         $errors[] = 'Website đang tạm tắt đăng ký tài khoản mới.';
     }
     $name = trim($_POST['name'] ?? '');
@@ -59,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Đăng ký - <?= APP_NAME ?></title>
+    <title>Đăng ký - <?= e(site_name()) ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
@@ -71,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="auth-hero-content">
             <div class="auth-brand-row">
                 <div class="brand-icon"><i class="bi bi-mortarboard-fill"></i></div>
-                <span><?= APP_NAME ?></span>
+                <span><?= e(site_name()) ?></span>
             </div>
             <span class="auth-eyebrow">Bắt đầu miễn phí</span>
             <h1>Tạo lộ trình học từ vựng riêng.</h1>
@@ -99,6 +101,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger py-2"><?= e($error) ?></div>
         <?php endforeach; ?>
 
+        <?php if (!$registrationEnabled): ?>
+            <div class="alert alert-warning">Đăng ký tài khoản mới đang tạm tắt. Vui lòng liên hệ quản trị viên.</div>
+        <?php else: ?>
         <form method="post" action="<?= app_url('register.php') ?>" novalidate>
             <?= csrf_field() ?>
             <div class="mb-3">
@@ -137,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <button class="btn btn-primary auth-submit w-100" type="submit">Tạo tài khoản <i class="bi bi-arrow-right"></i></button>
         </form>
+        <?php endif; ?>
 
         <div class="auth-switch">
             Đã có tài khoản? <a href="<?= app_url('login.php') ?>" data-auth-transition="login">Đăng nhập</a>

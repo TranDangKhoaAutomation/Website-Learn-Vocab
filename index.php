@@ -1,7 +1,9 @@
 <?php
-require_once __DIR__ . '/config/config.php';
+require_once __DIR__ . '/includes/settings.php';
 
 $loggedIn = !empty($_SESSION['user_id']);
+enforce_maintenance_mode();
+$registrationEnabled = settings_enabled('registration_enabled', true);
 if (!headers_sent()) {
     header('Content-Type: text/html; charset=utf-8');
 }
@@ -11,7 +13,7 @@ if (!headers_sent()) {
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= APP_NAME ?> - Học tiếng Anh miễn phí</title>
+    <title><?= e(site_name()) ?> - <?= e(site_tagline()) ?></title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -23,7 +25,7 @@ if (!headers_sent()) {
 <nav class="public-nav">
     <a class="public-brand" href="<?= BASE_URL ?>">
         <span class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></span>
-        <span><?= APP_NAME ?></span>
+        <span><?= e(site_name()) ?></span>
     </a>
     <div class="public-nav-links">
         <a href="#features">Tính năng</a>
@@ -33,7 +35,9 @@ if (!headers_sent()) {
             <a class="btn btn-primary" href="<?= app_url('dashboard.php') ?>">Vào Dashboard</a>
         <?php else: ?>
             <a href="<?= app_url('login.php') ?>">Đăng nhập</a>
-            <a class="btn btn-primary" href="<?= app_url('register.php') ?>">Bắt đầu miễn phí</a>
+            <?php if ($registrationEnabled): ?>
+                <a class="btn btn-primary" href="<?= app_url('register.php') ?>">Bắt đầu miễn phí</a>
+            <?php endif; ?>
         <?php endif; ?>
     </div>
 </nav>
@@ -49,7 +53,9 @@ if (!headers_sent()) {
                     <a class="btn btn-primary btn-lg" href="<?= app_url('dashboard.php') ?>">Tiếp tục học</a>
                     <a class="btn btn-light btn-lg" href="<?= app_url('pages/create_set.php') ?>">Tạo bộ từ</a>
                 <?php else: ?>
-                    <a class="btn btn-primary btn-lg" href="<?= app_url('register.php') ?>">Tạo tài khoản miễn phí</a>
+                    <?php if ($registrationEnabled): ?>
+                        <a class="btn btn-primary btn-lg" href="<?= app_url('register.php') ?>">Tạo tài khoản miễn phí</a>
+                    <?php endif; ?>
                     <a class="btn btn-light btn-lg" href="<?= app_url('login.php') ?>">Đăng nhập</a>
                 <?php endif; ?>
             </div>
@@ -271,7 +277,7 @@ if (!headers_sent()) {
                 <div class="founder-avatar">K</div>
                 <span>Founder & Product Builder</span>
                 <h2>Trần Đăng Khoa</h2>
-                <p>Người định hướng và phát triển <?= APP_NAME ?> với mục tiêu tạo một không gian học từ vựng miễn phí, dễ dùng và đủ linh hoạt cho cá nhân, lớp học hoặc nhóm tự học.</p>
+                <p>Người định hướng và phát triển <?= e(site_name()) ?> với mục tiêu tạo một không gian học từ vựng miễn phí, dễ dùng và đủ linh hoạt cho cá nhân, lớp học hoặc nhóm tự học.</p>
                 <div class="founder-signature">
                     <i class="bi bi-lightbulb"></i>
                     <strong>Tập trung vào trải nghiệm học thực tế, tiến độ rõ ràng và khả năng chia sẻ kiến thức.</strong>
@@ -305,14 +311,16 @@ if (!headers_sent()) {
                 <a class="btn btn-primary btn-lg" href="<?= app_url('dashboard.php') ?>">Vào Dashboard</a>
             <?php else: ?>
                 <a class="btn btn-primary btn-lg" href="<?= app_url('login.php') ?>">Đăng nhập</a>
-                <a class="btn btn-outline-primary btn-lg" href="<?= app_url('register.php') ?>">Đăng ký</a>
+                <?php if ($registrationEnabled): ?>
+                    <a class="btn btn-outline-primary btn-lg" href="<?= app_url('register.php') ?>">Đăng ký</a>
+                <?php endif; ?>
             <?php endif; ?>
         </div>
     </section>
 </main>
 
 <footer class="public-footer">
-    <span>© <?= date('Y') ?> <?= APP_NAME ?>. Founded and developed by Trần Đăng Khoa.</span>
+    <span>© <?= date('Y') ?> <?= e(get_setting('footer_text', site_name())) ?></span>
     <span>All rights reserved.</span>
 </footer>
 

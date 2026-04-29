@@ -1,3 +1,15 @@
+        <?php
+        require_once __DIR__ . '/settings.php';
+        $footerText = trim((string) get_setting('footer_text', site_name()));
+        $footerBrand = $footerText !== '' ? $footerText : site_name();
+        $contactEmail = trim((string) get_setting('contact_email', ''));
+        ?>
+        <footer class="app-footer">
+            <span>© <?= date('Y') ?> <?= e($footerBrand) ?>. All rights reserved.</span>
+            <?php if ($contactEmail !== ''): ?>
+                <span><?= e($contactEmail) ?></span>
+            <?php endif; ?>
+        </footer>
     </div>
 </main>
 </div>

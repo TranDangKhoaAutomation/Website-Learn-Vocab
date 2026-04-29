@@ -1,12 +1,11 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/settings.php';
 
 if (empty($_SESSION['user_id'])) {
     set_flash('warning', 'Vui lòng đăng nhập để tiếp tục.');
     redirect('login.php');
 }
-
-require_once __DIR__ . '/../config/database.php';
 
 if (!empty($pdo)) {
     $stmt = $pdo->prepare('SELECT name, email, role, status FROM users WHERE id = ? LIMIT 1');
@@ -23,3 +22,5 @@ if (!empty($pdo)) {
         redirect('login.php');
     }
 }
+
+enforce_maintenance_mode();
