@@ -109,7 +109,7 @@
 
     function saveProgress(setId, cardId, mode, result, lastAnswer) {
         if (!setId || !cardId) return Promise.resolve({ success: false });
-        return postJson('actions/save_progress.php', {
+        return postJson('actions/save_progress', {
             action: 'progress',
             set_id: setId,
             card_id: cardId,
@@ -121,7 +121,7 @@
 
     function saveTestResult(setId, score, totalQuestions, mode) {
         if (!setId || !totalQuestions) return Promise.resolve({ success: false });
-        return postJson('actions/save_progress.php', {
+        return postJson('actions/save_progress', {
             action: 'test_result',
             set_id: setId,
             score,
@@ -1538,10 +1538,163 @@
         renderMatch();
     }
 
+    function setupPasswordToggles() {
+        $$('[data-toggle-password]').forEach((button) => {
+            const targetSelector = button.getAttribute('data-toggle-password');
+            const input = targetSelector ? $(targetSelector) : null;
+
+            if (!input) return;
+
+            button.addEventListener('click', () => {
+                const shouldShow = input.type === 'password';
+                input.type = shouldShow ? 'text' : 'password';
+                button.setAttribute('aria-label', shouldShow ? 'Ẩn mật khẩu' : 'Hiện mật khẩu');
+                button.innerHTML = shouldShow ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+                input.focus({ preventScroll: true });
+            });
+        });
+    }
+
+    function setupAuthTransitions() {
+        const page = document.body;
+        const card = $('.auth-card-modern');
+
+        if (!page?.classList.contains('auth-page') || !card) return;
+
+        let enterDirection = '';
+
+        try {
+            enterDirection = window.sessionStorage.getItem('auth_transition_direction') || '';
+            window.sessionStorage.removeItem('auth_transition_direction');
+        } catch (error) {
+            enterDirection = '';
+        }
+
+        if (enterDirection === 'register' || enterDirection === 'login') {
+            page.classList.add(enterDirection === 'register' ? 'auth-enter-from-right' : 'auth-enter-from-left');
+            window.requestAnimationFrame(() => {
+                page.classList.add('auth-enter-active');
+                window.setTimeout(() => {
+                    page.classList.remove('auth-enter-from-right', 'auth-enter-from-left', 'auth-enter-active');
+                }, 380);
+            });
+        }
+
+        $$('[data-auth-transition]').forEach((link) => {
+            link.addEventListener('click', (event) => {
+                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+                const target = link.getAttribute('href');
+                const direction = link.getAttribute('data-auth-transition');
+
+                if (!target || !direction) return;
+
+                event.preventDefault();
+                page.classList.remove('auth-enter-from-right', 'auth-enter-from-left', 'auth-enter-active');
+                page.classList.add(direction === 'register' ? 'auth-exit-to-left' : 'auth-exit-to-right');
+
+                try {
+                    window.sessionStorage.setItem('auth_transition_direction', direction);
+                } catch (error) {
+                    // Navigation still works if storage is blocked.
+                }
+
+                window.setTimeout(() => {
+                    window.location.href = target;
+                }, 280);
+            });
+        });
+    }
+
+    function setupThemeAndAdminUi() {
+        const root = document.documentElement;
+        const apply = (theme) => {
+            root.dataset.theme = theme;
+            document.body?.classList.toggle('dark-mode', theme === 'dark');
+        };
+        try {
+            apply(localStorage.getItem('app_theme') || 'light');
+        } catch (error) {
+            apply('light');
+        }
+        $('#themeToggle')?.addEventListener('click', () => {
+            const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+            apply(next);
+            try { localStorage.setItem('app_theme', next); } catch (error) {}
+        });
+        $$('[data-confirm-action]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                if (!window.confirm(button.dataset.confirmAction || 'Bạn chắc chắn muốn thực hiện thao tác này?')) {
+                    event.preventDefault();
+                }
+            });
+        });
+        $$('[data-check-all]').forEach((checkbox) => {
+            checkbox.addEventListener('change', () => {
+                $$(checkbox.dataset.checkAll).forEach((item) => { item.checked = checkbox.checked; });
+            });
+        });
+        $$('.js-speak').forEach((button) => {
+            button.addEventListener('click', () => speakText(button.dataset.text || button.textContent || ''));
+        });
+        const backToTop = $('#backToTop');
+        if (backToTop) {
+            window.addEventListener('scroll', () => backToTop.classList.toggle('show', window.scrollY > 420));
+            backToTop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+        }
+        const chartEl = $('#adminStudyChart');
+        const chartData = parseJsonScript('adminStudyChartData');
+        if (chartEl && window.Chart) {
+            new window.Chart(chartEl, {
+                type: 'line',
+                data: {
+                    labels: chartData.map((row) => row.day),
+                    datasets: [{ label: 'Lượt học', data: chartData.map((row) => Number(row.total || 0)), borderColor: '#2563eb', backgroundColor: 'rgba(37,99,235,.12)', fill: true, tension: .35 }]
+                },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+    }
+
+    function setupToolForms() {
+        const sourceMode = $('#sourceMode');
+        if (!sourceMode) return;
+        const upload = $('.source-upload');
+        const paste = $('.source-paste');
+        const sync = () => {
+            if (upload) upload.hidden = sourceMode.value !== 'upload';
+            if (paste) paste.hidden = sourceMode.value !== 'paste';
+        };
+        sourceMode.addEventListener('change', sync);
+        sync();
+    }
+
+    function setupFeedbackImagePreview() {
+        const input = $('#screenshot');
+        const preview = $('.feedback-upload-preview');
+        if (!input || !preview) return;
+        input.addEventListener('change', () => {
+            const file = input.files?.[0];
+            if (!file || !file.type.startsWith('image/')) {
+                preview.innerHTML = '<i class="bi bi-image"></i><span>Ảnh giúp admin hiểu lỗi nhanh hơn.</span>';
+                return;
+            }
+            const url = URL.createObjectURL(file);
+            preview.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = 'Preview';
+            img.onload = () => URL.revokeObjectURL(url);
+            preview.appendChild(img);
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         if (!window.location.hash) {
             window.scrollTo(0, 0);
         }
+        setupAuthTransitions();
+        setupPasswordToggles();
         setupSidebar();
         setupConfirmDelete();
         setupAlerts();
@@ -1553,5 +1706,8 @@
         setupBlocks();
         setupBlast();
         setupMatch();
+        setupThemeAndAdminUi();
+        setupToolForms();
+        setupFeedbackImagePreview();
     });
 })();

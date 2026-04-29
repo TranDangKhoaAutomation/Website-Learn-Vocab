@@ -32,12 +32,12 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>Blast</h1>
         <p>Chọn thật nhanh nghĩa đúng của từ đang hiện ở giữa màn hình.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/blast.php"><i class="bi bi-grid"></i> Chọn bài khác</a>
+    <a class="btn btn-outline-secondary" href="<?= app_url('pages/blast.php') ?>"><i class="bi bi-grid"></i> Chọn bài khác</a>
 </div>
 
 <?php if ($selectedSet): ?>
 <section class="panel mb-4">
-    <form class="row g-3 align-items-end" method="get" action="<?= BASE_URL ?>pages/blast.php">
+    <form class="row g-3 align-items-end" method="get" action="<?= app_url('pages/blast.php') ?>">
         <div class="col-md-8">
             <label class="form-label" for="set_id">Chọn bộ từ</label>
             <select class="form-select" id="set_id" name="set_id" onchange="this.form.submit()">
@@ -62,7 +62,7 @@ include __DIR__ . '/../includes/navbar.php';
         <i class="bi bi-card-text"></i>
         <h3>Bộ từ này chưa có flashcard</h3>
         <p>Thêm flashcard trước khi chơi.</p>
-        <a class="btn btn-primary" href="<?= BASE_URL ?>pages/edit_set.php?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
+        <a class="btn btn-primary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
     </div>
 <?php else: ?>
     <section class="panel blast-panel" id="blastApp" data-set-id="<?= (int) $selectedSetId ?>">

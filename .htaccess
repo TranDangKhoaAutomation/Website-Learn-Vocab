@@ -1,0 +1,40 @@
+                                                                                                                                                                Options -Indexes
+DirectoryIndex index.php
+
+<FilesMatch "^(english_learning_app.*\.sql|.*\.env|composer\.(json|lock))$">
+    Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # Clean old GET URLs such as /dashboard.php to /dashboard.
+    # POST requests are not redirected so form submissions keep their payload.
+    RewriteCond %{REQUEST_METHOD} GET
+    RewriteCond %{THE_REQUEST} \s/+(.+?)\.php[?\s]
+    RewriteRule ^(.+)\.php$ /$1 [R=301,L,NE]
+
+    # Move old /pages/... URLs to root aliases.
+    RewriteCond %{REQUEST_METHOD} GET
+    RewriteRule ^pages/(sets|create_set|edit_set|flashcards|learn|test|blocks|blast|match|profile|library|feedback|classes|class_detail)/?$ /$1 [R=301,L,QSA]
+
+    # Keep existing static files and folders working normally.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # Root-level pages.
+    RewriteRule ^(index|login|register|logout|dashboard)/?$ $1.php [L,QSA]
+
+    # Pages and actions without the .php extension.
+    RewriteRule ^pages/([A-Za-z0-9_-]+)/?$ pages/$1.php [L,QSA]
+    RewriteRule ^actions/([A-Za-z0-9_-]+)/?$ actions/$1.php [L,QSA]
+    RewriteRule ^admin/([A-Za-z0-9_-]+)/?$ admin/$1.php [L,QSA]
+    RewriteRule ^admin/?$ admin/index.php [L,QSA]
+    RewriteRule ^tool/?$ tool/index.php [L,QSA]
+    RewriteRule ^tool/([A-Za-z0-9_-]+)/?$ tool/$1.php [L,QSA]
+
+    # Public clean aliases for user pages.
+    RewriteRule ^(sets|create_set|edit_set|flashcards|learn|test|blocks|blast|match|profile|library|feedback|classes|class_detail)/?$ pages/$1.php [L,QSA]
+</IfModule>

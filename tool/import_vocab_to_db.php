@@ -1388,7 +1388,11 @@ try {
             <h1 class="h3 mb-1">Import vocab JSON</h1>
             <p class="small-note mb-0">Đọc <code>tool/vocab.json</code>, kiểm tra trùng từ rồi đưa mỗi từ về đúng bài theo <code>source_title</code>.</p>
         </div>
-        <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/sets.php">Quay lại My Sets</a>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-primary" href="<?= app_url('tool/getvoca.php') ?>">HTML -> JSON</a>
+            <a class="btn btn-outline-secondary" href="<?= app_url('tool/index.php') ?>">Tool Hub</a>
+            <a class="btn btn-outline-secondary" href="<?= app_url('pages/sets.php') ?>">Quay lại My Sets</a>
+        </div>
     </div>
 
     <section class="import-panel">

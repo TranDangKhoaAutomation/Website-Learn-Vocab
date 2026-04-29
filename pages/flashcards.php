@@ -32,7 +32,7 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>Flashcards</h1>
         <p>Lật thẻ, nghe phát âm và đánh dấu mức độ ghi nhớ.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/flashcards.php"><i class="bi bi-grid"></i> Chọn bài khác</a>
+    <a class="btn btn-outline-secondary" href="<?= app_url('pages/flashcards.php') ?>"><i class="bi bi-grid"></i> Chọn bài khác</a>
 </div>
 
 <?php if (!empty($database_error)): ?>
@@ -41,7 +41,7 @@ include __DIR__ . '/../includes/navbar.php';
 
 <?php if ($selectedSet): ?>
 <section class="panel mb-4">
-    <form class="row g-3 align-items-end" method="get" action="<?= BASE_URL ?>pages/flashcards.php">
+    <form class="row g-3 align-items-end" method="get" action="<?= app_url('pages/flashcards.php') ?>">
         <div class="col-md-8">
             <label class="form-label" for="set_id">Chọn bộ từ</label>
             <select class="form-select" id="set_id" name="set_id" onchange="this.form.submit()">
@@ -66,7 +66,7 @@ include __DIR__ . '/../includes/navbar.php';
         <i class="bi bi-card-text"></i>
         <h3>Bộ từ này chưa có flashcard</h3>
         <p>Thêm flashcard trước khi học.</p>
-        <a class="btn btn-primary" href="<?= BASE_URL ?>pages/edit_set.php?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
+        <a class="btn btn-primary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $selectedSetId ?>">Thêm flashcard</a>
     </div>
 <?php else: ?>
     <div id="flashcardApp" class="learning-layout" data-set-id="<?= (int) $selectedSetId ?>">
@@ -121,11 +121,11 @@ include __DIR__ . '/../includes/navbar.php';
                 </div>
                 <div class="complete-actions">
                     <button class="btn btn-primary" id="fcRestart" type="button"><i class="bi bi-arrow-clockwise"></i> Học lại</button>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/learn.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-mortarboard"></i> Learn</a>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/test.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-ui-checks-grid"></i> Test</a>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/match.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-intersect"></i> Match</a>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/blocks.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-boxes"></i> Blocks</a>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/blast.php?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-rocket-takeoff"></i> Blast</a>
+                    <a class="btn btn-outline-primary" href="<?= app_url('pages/learn.php') ?>?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-mortarboard"></i> Learn</a>
+                    <a class="btn btn-outline-primary" href="<?= app_url('pages/test.php') ?>?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-ui-checks-grid"></i> Test</a>
+                    <a class="btn btn-outline-primary" href="<?= app_url('pages/match.php') ?>?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-intersect"></i> Match</a>
+                    <a class="btn btn-outline-primary" href="<?= app_url('pages/blocks.php') ?>?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-boxes"></i> Blocks</a>
+                    <a class="btn btn-outline-primary" href="<?= app_url('pages/blast.php') ?>?set_id=<?= (int) $selectedSetId ?>"><i class="bi bi-rocket-takeoff"></i> Blast</a>
                 </div>
             </div>
             <div class="small text-muted mt-3" id="speechNotice" hidden>Trình duyệt của bạn không hỗ trợ đọc văn bản.</div>

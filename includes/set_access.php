@@ -1,6 +1,156 @@
 <?php
 require_once __DIR__ . '/../config/config.php';
 
+function search_normalize_text(string $value): string
+{
+    $value = mb_strtolower(trim($value), 'UTF-8');
+    $ascii = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+    if ($ascii !== false) {
+        $value = $ascii;
+    }
+    $value = preg_replace('/[^a-z0-9]+/i', ' ', $value) ?? '';
+    return trim(preg_replace('/\s+/', ' ', $value) ?? '');
+}
+
+function search_match_score(string $query, array $weightedFields): float
+{
+    $query = search_normalize_text($query);
+    if ($query === '') {
+        return 0;
+    }
+
+    $best = 0.0;
+    foreach ($weightedFields as $field => $weight) {
+        $field = search_normalize_text((string) $field);
+        if ($field === '') {
+            continue;
+        }
+
+        $score = 0.0;
+        if ($field === $query) {
+            $score = 100;
+        } elseif (str_starts_with($field, $query)) {
+            $score = 96;
+        } elseif (str_contains($field, $query)) {
+            $score = 92;
+        }
+
+        similar_text($query, $field, $fullPercent);
+        $score = max($score, (float) $fullPercent * 0.82);
+
+        foreach (array_unique(explode(' ', $field)) as $token) {
+            if (mb_strlen($token, 'UTF-8') < 2) {
+                continue;
+            }
+            if ($token === $query) {
+                $score = max($score, 100);
+                continue;
+            }
+            if (str_starts_with($token, $query) || str_starts_with($query, $token)) {
+                $score = max($score, 90);
+            }
+            similar_text($query, $token, $tokenPercent);
+            $distance = levenshtein($query, $token);
+            $maxLength = max(strlen($query), strlen($token), 1);
+            $distanceScore = max(0, (1 - ($distance / $maxLength)) * 100);
+            $score = max($score, (float) $tokenPercent, $distanceScore);
+        }
+
+        $best = max($best, $score * (float) $weight);
+    }
+
+    return round($best, 2);
+}
+
+function rank_sets_by_query(array $sets, string $query): array
+{
+    if (trim($query) === '') {
+        return $sets;
+    }
+
+    $ranked = [];
+    foreach ($sets as $set) {
+        $score = search_match_score($query, [
+            $set['title'] ?? '' => 1.0,
+            $set['description'] ?? '' => 0.74,
+            $set['owner_name'] ?? '' => 0.68,
+            $set['class_name'] ?? '' => 0.62,
+            $set['visibility'] ?? '' => 0.5,
+            $set['level'] ?? '' => 0.5,
+            $set['category_name'] ?? '' => 0.6,
+            $set['card_terms'] ?? '' => 0.95,
+            $set['card_definitions'] ?? '' => 0.92,
+        ]);
+        if ($score >= 70) {
+            $set['_search_score'] = $score;
+            $ranked[] = $set;
+        }
+    }
+
+    usort($ranked, static function (array $a, array $b): int {
+        $scoreCompare = ($b['_search_score'] ?? 0) <=> ($a['_search_score'] ?? 0);
+        if ($scoreCompare !== 0) {
+            return $scoreCompare;
+        }
+        return strcmp((string) ($b['updated_at'] ?? $b['created_at'] ?? ''), (string) ($a['updated_at'] ?? $a['created_at'] ?? ''));
+    });
+
+    return $ranked;
+}
+
+function get_matching_cards_for_sets(PDO $pdo, array $sets, string $query, int $limitPerSet = 4): array
+{
+    if (trim($query) === '' || !$sets) {
+        return [];
+    }
+
+    $setIds = array_values(array_unique(array_map(static fn (array $set): int => (int) $set['id'], $sets)));
+    $setIds = array_values(array_filter($setIds, static fn (int $id): bool => $id > 0));
+    if (!$setIds) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($setIds), '?'));
+    $stmt = $pdo->prepare("
+        SELECT id, set_id, term, definition, pronunciation, example_sentence
+        FROM flashcards
+        WHERE set_id IN ($placeholders)
+        ORDER BY set_id ASC, id ASC
+    ");
+    $stmt->execute($setIds);
+
+    $matches = [];
+    foreach ($stmt->fetchAll() as $card) {
+        $score = search_match_score($query, [
+            $card['term'] ?? '' => 1.0,
+            $card['definition'] ?? '' => 1.0,
+            $card['pronunciation'] ?? '' => 0.35,
+            $card['example_sentence'] ?? '' => 0.62,
+        ]);
+
+        if ($score < 70) {
+            continue;
+        }
+
+        $card['_search_score'] = $score;
+        $matches[(int) $card['set_id']][] = $card;
+    }
+
+    foreach ($matches as &$cards) {
+        usort($cards, static function (array $a, array $b): int {
+            $scoreCompare = ($b['_search_score'] ?? 0) <=> ($a['_search_score'] ?? 0);
+            if ($scoreCompare !== 0) {
+                return $scoreCompare;
+            }
+            return (int) $a['id'] <=> (int) $b['id'];
+        });
+        $cards = array_slice($cards, 0, $limitPerSet);
+    }
+    unset($cards);
+
+    return $matches;
+}
+
 function get_user_classes(PDO $pdo, int $userId): array
 {
     $stmt = $pdo->prepare('
@@ -17,14 +167,21 @@ function get_user_classes(PDO $pdo, int $userId): array
 function get_accessible_sets(PDO $pdo, int $userId, string $query = ''): array
 {
     $sql = '
-        SELECT s.*, u.name AS owner_name, c.name AS class_name, sp.role AS shared_role, COALESCE(fc.card_count, 0) AS card_count
+        SELECT s.*, u.name AS owner_name, c.name AS class_name, sp.role AS shared_role,
+               COALESCE(fc.card_count, 0) AS card_count,
+               COALESCE(fc.card_terms, "") AS card_terms,
+               COALESCE(fc.card_definitions, "") AS card_definitions
         FROM vocabulary_sets s
         INNER JOIN users u ON u.id = s.user_id
         LEFT JOIN learning_classes c ON c.id = s.class_id
         LEFT JOIN class_members cm ON cm.class_id = s.class_id AND cm.user_id = ?
         LEFT JOIN vocabulary_set_permissions sp ON sp.set_id = s.id AND sp.user_id = ?
         LEFT JOIN (
-            SELECT set_id, COUNT(*) AS card_count
+            SELECT
+                set_id,
+                COUNT(*) AS card_count,
+                GROUP_CONCAT(term SEPARATOR " ") AS card_terms,
+                GROUP_CONCAT(definition SEPARATOR " ") AS card_definitions
             FROM flashcards
             GROUP BY set_id
         ) fc ON fc.set_id = s.id
@@ -38,12 +195,6 @@ function get_accessible_sets(PDO $pdo, int $userId, string $query = ''): array
     ';
     $params = [$userId, $userId, $userId];
 
-    if ($query !== '') {
-        $sql .= ' AND (s.title LIKE ? OR s.description LIKE ? OR u.name LIKE ? OR c.name LIKE ?)';
-        $like = '%' . $query . '%';
-        array_push($params, $like, $like, $like, $like);
-    }
-
     $sql .= '
         ORDER BY
             CASE WHEN s.user_id = ? THEN 0 ELSE 1 END,
@@ -55,17 +206,24 @@ function get_accessible_sets(PDO $pdo, int $userId, string $query = ''): array
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    return $stmt->fetchAll();
+    return rank_sets_by_query($stmt->fetchAll(), $query);
 }
 
 function get_owned_sets(PDO $pdo, int $userId, string $query = ''): array
 {
     $sql = '
-        SELECT s.*, c.name AS class_name, COALESCE(fc.card_count, 0) AS card_count
+        SELECT s.*, c.name AS class_name,
+               COALESCE(fc.card_count, 0) AS card_count,
+               COALESCE(fc.card_terms, "") AS card_terms,
+               COALESCE(fc.card_definitions, "") AS card_definitions
         FROM vocabulary_sets s
         LEFT JOIN learning_classes c ON c.id = s.class_id
         LEFT JOIN (
-            SELECT set_id, COUNT(*) AS card_count
+            SELECT
+                set_id,
+                COUNT(*) AS card_count,
+                GROUP_CONCAT(term SEPARATOR " ") AS card_terms,
+                GROUP_CONCAT(definition SEPARATOR " ") AS card_definitions
             FROM flashcards
             GROUP BY set_id
         ) fc ON fc.set_id = s.id
@@ -73,40 +231,35 @@ function get_owned_sets(PDO $pdo, int $userId, string $query = ''): array
     ';
     $params = [$userId];
 
-    if ($query !== '') {
-        $sql .= ' AND (s.title LIKE ? OR s.description LIKE ? OR c.name LIKE ?)';
-        $like = '%' . $query . '%';
-        array_push($params, $like, $like, $like);
-    }
-
     $sql .= ' ORDER BY s.updated_at DESC, s.created_at DESC';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    return $stmt->fetchAll();
+    return rank_sets_by_query($stmt->fetchAll(), $query);
 }
 
 function get_shared_sets(PDO $pdo, int $userId, string $query = ''): array
 {
     $sql = '
-        SELECT s.*, u.name AS owner_name, c.name AS class_name, sp.role AS shared_role, COALESCE(fc.card_count, 0) AS card_count
+        SELECT s.*, u.name AS owner_name, c.name AS class_name, sp.role AS shared_role,
+               COALESCE(fc.card_count, 0) AS card_count,
+               COALESCE(fc.card_terms, "") AS card_terms,
+               COALESCE(fc.card_definitions, "") AS card_definitions
         FROM vocabulary_set_permissions sp
         INNER JOIN vocabulary_sets s ON s.id = sp.set_id
         INNER JOIN users u ON u.id = s.user_id
         LEFT JOIN learning_classes c ON c.id = s.class_id
         LEFT JOIN (
-            SELECT set_id, COUNT(*) AS card_count
+            SELECT
+                set_id,
+                COUNT(*) AS card_count,
+                GROUP_CONCAT(term SEPARATOR " ") AS card_terms,
+                GROUP_CONCAT(definition SEPARATOR " ") AS card_definitions
             FROM flashcards
             GROUP BY set_id
         ) fc ON fc.set_id = s.id
         WHERE sp.user_id = ?
     ';
     $params = [$userId];
-
-    if ($query !== '') {
-        $sql .= ' AND (s.title LIKE ? OR s.description LIKE ? OR u.name LIKE ? OR c.name LIKE ?)';
-        $like = '%' . $query . '%';
-        array_push($params, $like, $like, $like, $like);
-    }
 
     $sql .= '
         ORDER BY
@@ -117,7 +270,7 @@ function get_shared_sets(PDO $pdo, int $userId, string $query = ''): array
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-    return $stmt->fetchAll();
+    return rank_sets_by_query($stmt->fetchAll(), $query);
 }
 
 function get_learning_set(PDO $pdo, int $setId, int $userId): ?array
@@ -156,17 +309,13 @@ function get_editable_set(PDO $pdo, int $setId, int $userId): ?array
     }
 
     $stmt = $pdo->prepare('
-        SELECT s.*, sp.role AS shared_role
+        SELECT s.*, NULL AS shared_role
         FROM vocabulary_sets s
-        LEFT JOIN vocabulary_set_permissions sp ON sp.set_id = s.id AND sp.user_id = ?
         WHERE s.id = ?
-          AND (
-              s.user_id = ?
-              OR sp.role IN ("editor", "admin")
-          )
+          AND s.user_id = ?
         LIMIT 1
     ');
-    $stmt->execute([$userId, $setId, $userId]);
+    $stmt->execute([$setId, $userId]);
     $set = $stmt->fetch();
 
     return $set ?: null;
@@ -206,20 +355,12 @@ function get_set_owner(PDO $pdo, int $setId, int $userId): ?array
 
 function can_edit_set_row(array $set, int $userId): bool
 {
-    if ((int) ($set['user_id'] ?? 0) === $userId) {
-        return true;
-    }
-
-    return in_array($set['shared_role'] ?? '', ['editor', 'admin'], true);
+    return (int) ($set['user_id'] ?? 0) === $userId;
 }
 
 function can_manage_set_row(array $set, int $userId): bool
 {
-    if ((int) ($set['user_id'] ?? 0) === $userId) {
-        return true;
-    }
-
-    return ($set['shared_role'] ?? '') === 'admin';
+    return (int) ($set['user_id'] ?? 0) === $userId;
 }
 
 function set_user_role_label(?string $role): string
@@ -333,7 +474,7 @@ function render_learning_set_picker(array $sets, string $modePath, string $modeN
                 <h2>Chọn bài học</h2>
                 <p><?= e($description) ?></p>
             </div>
-            <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/sets.php"><i class="bi bi-collection"></i> My Sets</a>
+            <a class="btn btn-outline-primary" href="<?= app_url('pages/sets.php') ?>"><i class="bi bi-collection"></i> My Sets</a>
         </div>
 
         <?php if (!$sets): ?>
@@ -342,8 +483,7 @@ function render_learning_set_picker(array $sets, string $modePath, string $modeN
                 <h3>Chưa có bộ từ nào có thể học</h3>
                 <p>Bạn có thể tạo bộ từ riêng, học bộ public hoặc tham gia một lớp được cấp quyền.</p>
                 <div class="d-flex justify-content-center flex-wrap gap-2">
-                    <a class="btn btn-primary" href="<?= BASE_URL ?>pages/create_set.php">Tạo bộ từ</a>
-                    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/classes.php">Lớp học</a>
+                    <a class="btn btn-primary" href="<?= app_url('pages/create_set.php') ?>">Tạo bộ từ</a>
                 </div>
             </div>
         <?php else: ?>
@@ -364,11 +504,11 @@ function render_learning_set_picker(array $sets, string $modePath, string $modeN
                             </div>
                         </div>
                         <div class="set-card-actions">
-                            <a class="btn btn-sm btn-primary" href="<?= BASE_URL . e($modePath) ?>?set_id=<?= (int) $set['id'] ?>">
+                            <a class="btn btn-sm btn-primary" href="<?= app_url($modePath) ?>?set_id=<?= (int) $set['id'] ?>">
                                 Vào <?= e($modeName) ?>
                             </a>
                             <?php if (can_edit_set_row($set, current_user_id())): ?>
-                                <a class="btn btn-sm btn-outline-secondary" href="<?= BASE_URL ?>pages/edit_set.php?id=<?= (int) $set['id'] ?>">
+                                <a class="btn btn-sm btn-outline-secondary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $set['id'] ?>">
                                     <?= (int) $set['card_count'] === 0 ? 'Thêm thẻ' : 'Sửa' ?>
                                 </a>
                             <?php endif; ?>

@@ -43,13 +43,13 @@ include __DIR__ . '/../includes/navbar.php';
         <p>Cập nhật thông tin bộ từ và quản lý flashcard.</p>
     </div>
     <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/flashcards.php?set_id=<?= (int) $set['id'] ?>"><i class="bi bi-play-circle"></i> Học</a>
-        <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/sets.php"><i class="bi bi-arrow-left"></i> My Sets</a>
+        <a class="btn btn-outline-primary" href="<?= app_url('pages/flashcards.php') ?>?set_id=<?= (int) $set['id'] ?>"><i class="bi bi-play-circle"></i> Học</a>
+        <a class="btn btn-outline-secondary" href="<?= app_url('pages/sets.php') ?>"><i class="bi bi-arrow-left"></i> My Sets</a>
     </div>
 </div>
 
 <section class="panel mb-4">
-    <form method="post" action="<?= BASE_URL ?>actions/update_set.php">
+    <form method="post" action="<?= app_url('actions/update_set.php') ?>">
         <input type="hidden" name="id" value="<?= (int) $set['id'] ?>">
         <div class="row g-3">
             <div class="col-lg-8">
@@ -63,7 +63,6 @@ include __DIR__ . '/../includes/navbar.php';
                     <select class="form-select visibility-select" id="visibility" name="visibility" data-class-target="#classSelectWrap">
                         <option value="private" <?= $visibility === 'private' ? 'selected' : '' ?>>Private - chỉ mình tôi</option>
                         <option value="public" <?= $visibility === 'public' ? 'selected' : '' ?>>Public - mọi người có thể học</option>
-                        <option value="class" <?= $visibility === 'class' ? 'selected' : '' ?>>Class - chỉ lớp được chọn</option>
                     </select>
                 </div>
                 <div class="col-lg-4" id="classSelectWrap" <?= $visibility === 'class' ? '' : 'hidden' ?>>
@@ -77,7 +76,7 @@ include __DIR__ . '/../includes/navbar.php';
                         <?php endforeach; ?>
                     </select>
                     <?php if (!$classes): ?>
-                        <div class="form-text">Bạn chưa có lớp. Tạo hoặc tham gia lớp trong trang Classes.</div>
+                        <div class="form-text">Chỉ dùng lựa chọn Private hoặc Public cho bộ từ cá nhân.</div>
                     <?php endif; ?>
                 </div>
             <?php else: ?>
@@ -107,7 +106,7 @@ include __DIR__ . '/../includes/navbar.php';
                 <p>Chia sẻ riêng bộ từ này cho người khác bằng email. Private vẫn có thể chia sẻ riêng theo vai trò.</p>
             </div>
         </div>
-        <form class="row g-3 align-items-end mb-3" method="post" action="<?= BASE_URL ?>actions/grant_set_permission.php">
+        <form class="row g-3 align-items-end mb-3" method="post" action="<?= app_url('actions/grant_set_permission.php') ?>">
             <input type="hidden" name="set_id" value="<?= (int) $set['id'] ?>">
             <div class="col-lg-5">
                 <label class="form-label" for="share_email">Email người dùng</label>
@@ -150,7 +149,7 @@ include __DIR__ . '/../includes/navbar.php';
                             <td><?= e($permission['email']) ?></td>
                             <td><span class="badge <?= e(set_user_role_badge($permission['role'])) ?>"><?= e(set_user_role_label($permission['role'])) ?></span></td>
                             <td class="text-end">
-                                <form method="post" action="<?= BASE_URL ?>actions/remove_set_permission.php" class="confirm-delete d-inline" data-confirm="Gỡ quyền người dùng này khỏi bộ từ?">
+                                <form method="post" action="<?= app_url('actions/remove_set_permission.php') ?>" class="confirm-delete d-inline" data-confirm="Gỡ quyền người dùng này khỏi bộ từ?">
                                     <input type="hidden" name="set_id" value="<?= (int) $set['id'] ?>">
                                     <input type="hidden" name="user_id" value="<?= (int) $permission['user_id'] ?>">
                                     <button class="btn btn-sm btn-outline-danger" type="submit">Gỡ quyền</button>
@@ -174,7 +173,7 @@ include __DIR__ . '/../includes/navbar.php';
                     <p>Term và Definition là bắt buộc.</p>
                 </div>
             </div>
-            <form method="post" action="<?= BASE_URL ?>actions/add_card.php" class="stack-form">
+            <form method="post" action="<?= app_url('actions/add_card.php') ?>" class="stack-form">
                 <input type="hidden" name="set_id" value="<?= (int) $set['id'] ?>">
                 <div>
                     <label class="form-label" for="term">Từ tiếng Anh</label>
@@ -227,7 +226,7 @@ include __DIR__ . '/../includes/navbar.php';
                             </h3>
                             <div id="card<?= (int) $card['id'] ?>" class="accordion-collapse collapse <?= $index === 0 ? 'show' : '' ?>" data-bs-parent="#cardsAccordion">
                                 <div class="accordion-body">
-                                    <form method="post" action="<?= BASE_URL ?>actions/update_card.php" class="stack-form" id="updateCard<?= (int) $card['id'] ?>">
+                                    <form method="post" action="<?= app_url('actions/update_card.php') ?>" class="stack-form" id="updateCard<?= (int) $card['id'] ?>">
                                         <input type="hidden" name="id" value="<?= (int) $card['id'] ?>">
                                         <div class="row g-3">
                                             <div class="col-md-6">
@@ -254,7 +253,7 @@ include __DIR__ . '/../includes/navbar.php';
                                     </form>
                                     <div class="d-flex justify-content-between gap-2 mt-3">
                                             <button class="btn btn-outline-primary" type="submit" form="updateCard<?= (int) $card['id'] ?>">Lưu thẻ</button>
-                                            <form method="post" action="<?= BASE_URL ?>actions/delete_card.php" class="confirm-delete" data-confirm="Xóa flashcard này?">
+                                            <form method="post" action="<?= app_url('actions/delete_card.php') ?>" class="confirm-delete" data-confirm="Xóa flashcard này?">
                                                 <input type="hidden" name="id" value="<?= (int) $card['id'] ?>">
                                                 <button class="btn btn-outline-danger" type="submit">Xóa</button>
                                             </form>

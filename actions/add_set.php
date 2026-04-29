@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../includes/set_access.php';
+require_once __DIR__ . '/../includes/settings.php';
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     redirect('pages/sets.php');
@@ -18,6 +19,7 @@ $visibility = $_POST['visibility'] ?? 'private';
 $visibility = in_array($visibility, ['private', 'public', 'class'], true) ? $visibility : 'private';
 $classId = $visibility === 'class' ? max(0, (int) ($_POST['class_id'] ?? 0)) : 0;
 $isPublic = $visibility === 'public' ? 1 : 0;
+$setStatus = ($visibility === 'public' && get_setting('public_set_moderation', false)) ? 'pending' : 'active';
 
 if ($title === '') {
     set_old($_POST);
@@ -41,11 +43,14 @@ try {
     $pdo->beginTransaction();
 
     $stmt = $pdo->prepare('
-        INSERT INTO vocabulary_sets (user_id, class_id, title, description, is_public, visibility, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        INSERT INTO vocabulary_sets (user_id, class_id, title, description, is_public, visibility, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     ');
-    $stmt->execute([current_user_id(), $classId ?: null, $title, $description, $isPublic, $visibility]);
+    $stmt->execute([current_user_id(), $classId ?: null, $title, $description, $isPublic, $visibility, $setStatus]);
     $setId = (int) $pdo->lastInsertId();
+
+    $achievementStmt = $pdo->prepare('INSERT IGNORE INTO user_achievements (user_id, achievement_id, earned_at) SELECT ?, id, NOW() FROM achievements WHERE code = "first_set"');
+    $achievementStmt->execute([current_user_id()]);
 
     $cardStmt = $pdo->prepare('
         INSERT INTO flashcards (set_id, term, definition, example_sentence, pronunciation, image_url, created_at)

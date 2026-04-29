@@ -8,10 +8,14 @@ $userId = current_user_id();
 $query = trim($_GET['q'] ?? '');
 $sets = [];
 $sharedSets = [];
+$matchedCards = [];
+$matchedSharedCards = [];
 
 if ($pdo) {
     $sets = get_owned_sets($pdo, $userId, $query);
     $sharedSets = get_shared_sets($pdo, $userId, $query);
+    $matchedCards = get_matching_cards_for_sets($pdo, $sets, $query);
+    $matchedSharedCards = get_matching_cards_for_sets($pdo, $sharedSets, $query);
 }
 
 include __DIR__ . '/../includes/header.php';
@@ -24,11 +28,7 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>My Sets</h1>
         <p>Quản lý các bộ từ vựng của riêng bạn.</p>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-        <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>tool/import_vocab_to_db.php"><i class="bi bi-upload"></i> Import JSON</a>
-        <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/classes.php"><i class="bi bi-people"></i> Classes</a>
-        <a class="btn btn-primary" href="<?= BASE_URL ?>pages/create_set.php"><i class="bi bi-plus-circle"></i> Tạo bộ từ</a>
-    </div>
+    <a class="btn btn-primary" href="<?= app_url('pages/create_set.php') ?>"><i class="bi bi-plus-circle"></i> Tạo bộ từ</a>
 </div>
 
 <?php if (!empty($database_error)): ?>
@@ -41,7 +41,7 @@ include __DIR__ . '/../includes/navbar.php';
             <h2>Danh sách bộ từ</h2>
             <p><?= $query !== '' ? 'Kết quả tìm kiếm cho: ' . e($query) : 'Tất cả bộ từ bạn đã tạo.' ?></p>
         </div>
-        <form class="inline-search" action="<?= BASE_URL ?>pages/sets.php" method="get">
+        <form class="inline-search" action="<?= app_url('pages/sets.php') ?>" method="get">
             <input class="form-control" type="search" name="q" placeholder="Tìm bộ từ..." value="<?= e($query) ?>">
             <button class="btn btn-outline-primary" type="submit"><i class="bi bi-search"></i></button>
         </form>
@@ -52,7 +52,7 @@ include __DIR__ . '/../includes/navbar.php';
             <i class="bi bi-folder2-open"></i>
             <h3><?= $query !== '' ? 'Không tìm thấy bộ từ' : 'Bạn chưa có bộ từ nào' ?></h3>
             <p>Tạo bộ từ mới rồi thêm flashcard để bắt đầu học.</p>
-            <a class="btn btn-primary" href="<?= BASE_URL ?>pages/create_set.php">Tạo bộ từ mới</a>
+            <a class="btn btn-primary" href="<?= app_url('pages/create_set.php') ?>">Tạo bộ từ mới</a>
         </div>
     <?php else: ?>
         <div class="set-grid">
@@ -70,11 +70,30 @@ include __DIR__ . '/../includes/navbar.php';
                             <span><i class="bi bi-card-text"></i> <?= (int) $set['card_count'] ?> flashcards</span>
                             <span><i class="bi bi-clock"></i> <?= e(date('d/m/Y', strtotime($set['updated_at']))) ?></span>
                         </div>
+                        <?php if ($query !== '' && !empty($matchedCards[(int) $set['id']])): ?>
+                            <div class="matched-card-list">
+                                <div class="matched-card-title"><i class="bi bi-search"></i> Từ vựng tìm thấy</div>
+                                <?php foreach ($matchedCards[(int) $set['id']] as $card): ?>
+                                    <div class="matched-card-item">
+                                        <div>
+                                            <strong><?= e($card['term']) ?></strong>
+                                            <?php if (!empty($card['pronunciation'])): ?>
+                                                <span class="pronunciation-inline"><?= e($card['pronunciation']) ?></span>
+                                            <?php endif; ?>
+                                            <p><?= e($card['definition']) ?></p>
+                                            <?php if (!empty($card['example_sentence'])): ?>
+                                                <small><?= e($card['example_sentence']) ?></small>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="set-card-actions">
-                        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>pages/flashcards.php?set_id=<?= (int) $set['id'] ?>">Học nhanh</a>
-                        <a class="btn btn-sm btn-outline-secondary" href="<?= BASE_URL ?>pages/edit_set.php?id=<?= (int) $set['id'] ?>">Sửa</a>
-                        <form method="post" action="<?= BASE_URL ?>actions/delete_set.php" class="d-inline confirm-delete" data-confirm="Xóa bộ từ này và toàn bộ flashcard bên trong?">
+                        <a class="btn btn-sm btn-primary" href="<?= app_url('pages/flashcards.php') ?>?set_id=<?= (int) $set['id'] ?>">Học nhanh</a>
+                        <a class="btn btn-sm btn-outline-secondary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $set['id'] ?>">Sửa</a>
+                        <form method="post" action="<?= app_url('actions/delete_set.php') ?>" class="d-inline confirm-delete" data-confirm="Xóa bộ từ này và toàn bộ flashcard bên trong?">
                             <input type="hidden" name="id" value="<?= (int) $set['id'] ?>">
                             <button class="btn btn-sm btn-outline-danger" type="submit">Xóa</button>
                         </form>
@@ -115,11 +134,30 @@ include __DIR__ . '/../includes/navbar.php';
                             <span><i class="bi bi-card-text"></i> <?= (int) $set['card_count'] ?> flashcards</span>
                             <span><i class="bi bi-person"></i> <?= e($set['owner_name']) ?></span>
                         </div>
+                        <?php if ($query !== '' && !empty($matchedSharedCards[(int) $set['id']])): ?>
+                            <div class="matched-card-list">
+                                <div class="matched-card-title"><i class="bi bi-search"></i> Từ vựng tìm thấy</div>
+                                <?php foreach ($matchedSharedCards[(int) $set['id']] as $card): ?>
+                                    <div class="matched-card-item">
+                                        <div>
+                                            <strong><?= e($card['term']) ?></strong>
+                                            <?php if (!empty($card['pronunciation'])): ?>
+                                                <span class="pronunciation-inline"><?= e($card['pronunciation']) ?></span>
+                                            <?php endif; ?>
+                                            <p><?= e($card['definition']) ?></p>
+                                            <?php if (!empty($card['example_sentence'])): ?>
+                                                <small><?= e($card['example_sentence']) ?></small>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php endif; ?>
                     </div>
                     <div class="set-card-actions">
-                        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>pages/flashcards.php?set_id=<?= (int) $set['id'] ?>">Học nhanh</a>
+                        <a class="btn btn-sm btn-primary" href="<?= app_url('pages/flashcards.php') ?>?set_id=<?= (int) $set['id'] ?>">Học nhanh</a>
                         <?php if (can_edit_set_row($set, $userId)): ?>
-                            <a class="btn btn-sm btn-outline-secondary" href="<?= BASE_URL ?>pages/edit_set.php?id=<?= (int) $set['id'] ?>">Sửa</a>
+                            <a class="btn btn-sm btn-outline-secondary" href="<?= app_url('pages/edit_set.php') ?>?id=<?= (int) $set['id'] ?>">Sửa</a>
                         <?php endif; ?>
                     </div>
                 </article>

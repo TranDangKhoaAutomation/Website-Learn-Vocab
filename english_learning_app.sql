@@ -140,7 +140,7 @@ CREATE TABLE test_results (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO users (id, name, email, password, created_at) VALUES
-(1, 'Trần Đăng Khoa', 'khoa@example.com', '$2y$10$jCOLverY4Dtps5JfQYCFOuy55otyBfvD1f235EmPK4Q1rFlTICxjC', NOW()),
+(1, 'Demo User', 'demo@example.com', '$2y$10$jCOLverY4Dtps5JfQYCFOuy55otyBfvD1f235EmPK4Q1rFlTICxjC', NOW()),
 (2, 'Student User', 'student@example.com', '$2y$10$jCOLverY4Dtps5JfQYCFOuy55otyBfvD1f235EmPK4Q1rFlTICxjC', NOW());
 
 INSERT INTO learning_classes (id, owner_id, name, description, invite_code, created_at) VALUES

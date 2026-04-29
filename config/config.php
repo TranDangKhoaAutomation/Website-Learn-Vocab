@@ -13,8 +13,26 @@ function e($value)
 
 function redirect($path)
 {
-    header('Location: ' . BASE_URL . ltrim($path, '/'));
+    header('Location: ' . app_url($path));
     exit;
+}
+
+function app_url($path = '')
+{
+    $path = ltrim((string) $path, '/');
+    $query = '';
+
+    if (($position = strpos($path, '?')) !== false) {
+        $query = substr($path, $position);
+        $path = substr($path, 0, $position);
+    }
+
+    $path = preg_replace('/\.php$/', '', $path);
+    if (str_starts_with($path, 'pages/')) {
+        $path = substr($path, 6);
+    }
+
+    return BASE_URL . $path . $query;
 }
 
 function current_user_id()
@@ -25,6 +43,11 @@ function current_user_id()
 function current_user_name()
 {
     return $_SESSION['user_name'] ?? 'User';
+}
+
+function current_user_role()
+{
+    return $_SESSION['user_role'] ?? 'user';
 }
 
 function set_flash($type, $message)

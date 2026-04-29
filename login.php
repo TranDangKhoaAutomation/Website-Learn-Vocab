@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/csrf.php';
 
 if (!empty($_SESSION['user_id'])) {
     redirect('dashboard.php');
@@ -12,6 +13,7 @@ if (!headers_sent()) {
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
@@ -24,20 +26,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$errors && $pdo) {
-        $stmt = $pdo->prepare('SELECT id, name, email, password FROM users WHERE email = ? LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, name, email, password, role, status FROM users WHERE email = ? LIMIT 1');
         $stmt->execute([$email]);
         $user = $stmt->fetch();
 
         if ($user && password_verify($password, $user['password'])) {
+            if (($user['status'] ?? 'active') === 'locked') {
+                $errors[] = 'Tài khoản đang bị khóa. Vui lòng liên hệ quản trị viên.';
+            } else {
             session_regenerate_id(true);
             $_SESSION['user_id'] = (int) $user['id'];
             $_SESSION['user_name'] = $user['name'];
             $_SESSION['user_email'] = $user['email'];
+            $_SESSION['user_role'] = $user['role'] ?? 'user';
+            $updateLogin = $pdo->prepare('UPDATE users SET last_login_at = NOW() WHERE id = ?');
+            $updateLogin->execute([(int) $user['id']]);
             set_flash('success', 'Đăng nhập thành công.');
             redirect('dashboard.php');
+            }
         }
 
-        $errors[] = 'Email hoặc mật khẩu không đúng.';
+        if (!$errors) {
+            $errors[] = 'Email hoặc mật khẩu không đúng.';
+        }
     }
 }
 
@@ -53,17 +64,33 @@ $flash = get_flash();
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
 </head>
-<body class="auth-page">
+<body class="auth-page" data-base-url="<?= BASE_URL ?>">
 <a class="auth-home-link" href="<?= BASE_URL ?>"><i class="bi bi-arrow-left"></i> Trang chủ</a>
-<main class="auth-card">
-    <div class="auth-hero">
-        <div class="brand-icon mb-3"><i class="bi bi-lightning-charge-fill"></i></div>
-        <h1><?= APP_NAME ?></h1>
-        <p>Học từ vựng bằng flashcard, quiz và mini game miễn phí.</p>
-    </div>
-    <div class="auth-form">
-        <h2>Đăng nhập</h2>
-        <p class="text-muted">Tiếp tục học với tài khoản của bạn.</p>
+<main class="auth-card auth-card-modern">
+    <section class="auth-hero">
+        <div class="auth-hero-content">
+            <div class="auth-brand-row">
+                <div class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></div>
+                <span><?= APP_NAME ?></span>
+            </div>
+            <span class="auth-eyebrow">Học tiếng Anh chủ động</span>
+            <h1>Ghi nhớ từ vựng thông minh hơn.</h1>
+            <p>Flashcards, luyện phát âm và mini game được gom trong một không gian học gọn gàng.</p>
+            <div class="auth-benefits">
+                <span><i class="bi bi-volume-up"></i> Luyện phát âm</span>
+                <span><i class="bi bi-bar-chart"></i> Theo dõi tiến độ</span>
+                <span><i class="bi bi-controller"></i> Học bằng game</span>
+            </div>
+        </div>
+    </section>
+    <section class="auth-form">
+        <div class="auth-form-head">
+            <div>
+                <span class="auth-form-kicker">Chào mừng trở lại</span>
+                <h2>Đăng nhập</h2>
+                <p class="text-muted mb-0">Tiếp tục học với tài khoản của bạn.</p>
+            </div>
+        </div>
 
         <?php if (!empty($database_error)): ?>
             <div class="alert alert-danger"><?= e($database_error) ?></div>
@@ -75,23 +102,34 @@ $flash = get_flash();
             <div class="alert alert-danger py-2"><?= e($error) ?></div>
         <?php endforeach; ?>
 
-        <form method="post" action="<?= BASE_URL ?>login.php" novalidate>
+        <form method="post" action="<?= app_url('login.php') ?>" novalidate>
+            <?= csrf_field() ?>
             <div class="mb-3">
                 <label class="form-label" for="email">Email</label>
-                <input class="form-control" id="email" name="email" type="email" value="<?= e($_POST['email'] ?? '') ?>" required>
+                <div class="auth-input">
+                    <span class="auth-input-icon"><i class="bi bi-envelope"></i></span>
+                    <input class="form-control" id="email" name="email" type="email" value="<?= e($_POST['email'] ?? '') ?>" placeholder="you@example.com" required>
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="password">Mật khẩu</label>
-                <input class="form-control" id="password" name="password" type="password" required>
+                <div class="auth-input has-toggle">
+                    <span class="auth-input-icon"><i class="bi bi-lock"></i></span>
+                    <input class="form-control" id="password" name="password" type="password" placeholder="Nhập mật khẩu" required>
+                    <button class="auth-password-toggle" type="button" data-toggle-password="#password" aria-label="Hiện mật khẩu">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
             </div>
-            <button class="btn btn-primary w-100" type="submit">Đăng nhập</button>
+            <button class="btn btn-primary auth-submit w-100" type="submit">Đăng nhập <i class="bi bi-arrow-right"></i></button>
         </form>
 
         <div class="auth-switch">
-            Chưa có tài khoản? <a href="<?= BASE_URL ?>register.php">Đăng ký miễn phí</a>
+            Chưa có tài khoản? <a href="<?= app_url('register.php') ?>" data-auth-transition="register">Đăng ký miễn phí</a>
         </div>
-    </div>
+    </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/main.js"></script>
 </body>
 </html>

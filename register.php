@@ -1,5 +1,7 @@
 <?php
 require_once __DIR__ . '/config/database.php';
+require_once __DIR__ . '/includes/csrf.php';
+require_once __DIR__ . '/includes/settings.php';
 
 if (!empty($_SESSION['user_id'])) {
     redirect('dashboard.php');
@@ -12,6 +14,10 @@ if (!headers_sent()) {
 $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
+    if (!get_setting('registration_enabled', true)) {
+        $errors[] = 'Website đang tạm tắt đăng ký tài khoản mới.';
+    }
     $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
@@ -58,17 +64,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
 </head>
-<body class="auth-page">
+<body class="auth-page auth-register-page" data-base-url="<?= BASE_URL ?>">
 <a class="auth-home-link" href="<?= BASE_URL ?>"><i class="bi bi-arrow-left"></i> Trang chủ</a>
-<main class="auth-card">
-    <div class="auth-hero">
-        <div class="brand-icon mb-3"><i class="bi bi-mortarboard-fill"></i></div>
-        <h1>Bắt đầu miễn phí</h1>
-        <p>Tạo bộ từ riêng, luyện tập và theo dõi tiến độ học tiếng Anh.</p>
-    </div>
-    <div class="auth-form">
-        <h2>Đăng ký</h2>
-        <p class="text-muted">Tạo tài khoản mới trong vài giây.</p>
+<main class="auth-card auth-card-modern">
+    <section class="auth-hero">
+        <div class="auth-hero-content">
+            <div class="auth-brand-row">
+                <div class="brand-icon"><i class="bi bi-mortarboard-fill"></i></div>
+                <span><?= APP_NAME ?></span>
+            </div>
+            <span class="auth-eyebrow">Bắt đầu miễn phí</span>
+            <h1>Tạo lộ trình học từ vựng riêng.</h1>
+            <p>Tự tạo bộ từ, học theo lớp, luyện phát âm và ôn lại câu sai sau mỗi lượt học.</p>
+            <div class="auth-benefits">
+                <span><i class="bi bi-card-checklist"></i> Tạo bộ từ</span>
+                <span><i class="bi bi-people"></i> Học theo lớp</span>
+                <span><i class="bi bi-repeat"></i> Ôn câu sai</span>
+            </div>
+        </div>
+    </section>
+    <section class="auth-form">
+        <div class="auth-form-head">
+            <div>
+                <span class="auth-form-kicker">Tài khoản mới</span>
+                <h2>Đăng ký</h2>
+                <p class="text-muted mb-0">Tạo tài khoản mới trong vài giây.</p>
+            </div>
+        </div>
 
         <?php if (!empty($database_error)): ?>
             <div class="alert alert-danger"><?= e($database_error) ?></div>
@@ -77,31 +99,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-danger py-2"><?= e($error) ?></div>
         <?php endforeach; ?>
 
-        <form method="post" action="<?= BASE_URL ?>register.php" novalidate>
+        <form method="post" action="<?= app_url('register.php') ?>" novalidate>
+            <?= csrf_field() ?>
             <div class="mb-3">
                 <label class="form-label" for="name">Họ tên</label>
-                <input class="form-control" id="name" name="name" type="text" value="<?= e($_POST['name'] ?? '') ?>" required>
+                <div class="auth-input">
+                    <span class="auth-input-icon"><i class="bi bi-person"></i></span>
+                    <input class="form-control" id="name" name="name" type="text" value="<?= e($_POST['name'] ?? '') ?>" placeholder="Tên của bạn" required>
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="email">Email</label>
-                <input class="form-control" id="email" name="email" type="email" value="<?= e($_POST['email'] ?? '') ?>" required>
+                <div class="auth-input">
+                    <span class="auth-input-icon"><i class="bi bi-envelope"></i></span>
+                    <input class="form-control" id="email" name="email" type="email" value="<?= e($_POST['email'] ?? '') ?>" placeholder="you@example.com" required>
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="password">Mật khẩu</label>
-                <input class="form-control" id="password" name="password" type="password" minlength="6" required>
+                <div class="auth-input has-toggle">
+                    <span class="auth-input-icon"><i class="bi bi-lock"></i></span>
+                    <input class="form-control" id="password" name="password" type="password" minlength="6" placeholder="Tối thiểu 6 ký tự" required>
+                    <button class="auth-password-toggle" type="button" data-toggle-password="#password" aria-label="Hiện mật khẩu">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
             </div>
             <div class="mb-3">
                 <label class="form-label" for="confirm_password">Xác nhận mật khẩu</label>
-                <input class="form-control" id="confirm_password" name="confirm_password" type="password" minlength="6" required>
+                <div class="auth-input has-toggle">
+                    <span class="auth-input-icon"><i class="bi bi-shield-check"></i></span>
+                    <input class="form-control" id="confirm_password" name="confirm_password" type="password" minlength="6" placeholder="Nhập lại mật khẩu" required>
+                    <button class="auth-password-toggle" type="button" data-toggle-password="#confirm_password" aria-label="Hiện mật khẩu">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
             </div>
-            <button class="btn btn-primary w-100" type="submit">Tạo tài khoản</button>
+            <button class="btn btn-primary auth-submit w-100" type="submit">Tạo tài khoản <i class="bi bi-arrow-right"></i></button>
         </form>
 
         <div class="auth-switch">
-            Đã có tài khoản? <a href="<?= BASE_URL ?>login.php">Đăng nhập</a>
+            Đã có tài khoản? <a href="<?= app_url('login.php') ?>" data-auth-transition="login">Đăng nhập</a>
         </div>
-    </div>
+    </section>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/main.js"></script>
 </body>
 </html>

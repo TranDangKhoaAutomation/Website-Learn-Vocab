@@ -72,7 +72,7 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>Profile</h1>
         <p>Thông tin tài khoản và lịch sử học tập.</p>
     </div>
-    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>dashboard.php"><i class="bi bi-speedometer2"></i> Dashboard</a>
+    <a class="btn btn-outline-primary" href="<?= app_url('dashboard.php') ?>"><i class="bi bi-speedometer2"></i> Dashboard</a>
 </div>
 
 <?php if (!empty($database_error)): ?>

@@ -30,10 +30,10 @@ if (!headers_sent()) {
         <a href="#modes">Chế độ học</a>
         <a href="#founder">Người sáng lập</a>
         <?php if ($loggedIn): ?>
-            <a class="btn btn-primary" href="<?= BASE_URL ?>dashboard.php">Vào Dashboard</a>
+            <a class="btn btn-primary" href="<?= app_url('dashboard.php') ?>">Vào Dashboard</a>
         <?php else: ?>
-            <a href="<?= BASE_URL ?>login.php">Đăng nhập</a>
-            <a class="btn btn-primary" href="<?= BASE_URL ?>register.php">Bắt đầu miễn phí</a>
+            <a href="<?= app_url('login.php') ?>">Đăng nhập</a>
+            <a class="btn btn-primary" href="<?= app_url('register.php') ?>">Bắt đầu miễn phí</a>
         <?php endif; ?>
     </div>
 </nav>
@@ -46,11 +46,11 @@ if (!headers_sent()) {
             <p>Tạo bộ từ riêng, học theo lớp, cấp quyền cho người khác và luyện phát âm bằng Web Speech API ngay trong trình duyệt.</p>
             <div class="hero-actions">
                 <?php if ($loggedIn): ?>
-                    <a class="btn btn-primary btn-lg" href="<?= BASE_URL ?>dashboard.php">Tiếp tục học</a>
-                    <a class="btn btn-light btn-lg" href="<?= BASE_URL ?>pages/create_set.php">Tạo bộ từ</a>
+                    <a class="btn btn-primary btn-lg" href="<?= app_url('dashboard.php') ?>">Tiếp tục học</a>
+                    <a class="btn btn-light btn-lg" href="<?= app_url('pages/create_set.php') ?>">Tạo bộ từ</a>
                 <?php else: ?>
-                    <a class="btn btn-primary btn-lg" href="<?= BASE_URL ?>register.php">Tạo tài khoản miễn phí</a>
-                    <a class="btn btn-light btn-lg" href="<?= BASE_URL ?>login.php">Đăng nhập</a>
+                    <a class="btn btn-primary btn-lg" href="<?= app_url('register.php') ?>">Tạo tài khoản miễn phí</a>
+                    <a class="btn btn-light btn-lg" href="<?= app_url('login.php') ?>">Đăng nhập</a>
                 <?php endif; ?>
             </div>
             <div class="home-trust-row">
@@ -302,10 +302,10 @@ if (!headers_sent()) {
         <p>Đăng nhập hoặc tạo tài khoản mới để trải nghiệm các chế độ học ngay.</p>
         <div class="hero-actions justify-content-center">
             <?php if ($loggedIn): ?>
-                <a class="btn btn-primary btn-lg" href="<?= BASE_URL ?>dashboard.php">Vào Dashboard</a>
+                <a class="btn btn-primary btn-lg" href="<?= app_url('dashboard.php') ?>">Vào Dashboard</a>
             <?php else: ?>
-                <a class="btn btn-primary btn-lg" href="<?= BASE_URL ?>login.php">Đăng nhập</a>
-                <a class="btn btn-outline-primary btn-lg" href="<?= BASE_URL ?>register.php">Đăng ký</a>
+                <a class="btn btn-primary btn-lg" href="<?= app_url('login.php') ?>">Đăng nhập</a>
+                <a class="btn btn-outline-primary btn-lg" href="<?= app_url('register.php') ?>">Đăng ký</a>
             <?php endif; ?>
         </div>
     </section>

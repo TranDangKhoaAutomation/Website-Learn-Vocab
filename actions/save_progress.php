@@ -46,6 +46,18 @@ if ($action === 'test_result') {
     ');
     $stmt->execute([$userId, $setId, min($score, $totalQuestions), $totalQuestions, $mode]);
 
+    $sessionStmt = $pdo->prepare('INSERT INTO study_sessions (user_id, mode, set_id, cards_studied, duration_seconds, created_at) VALUES (?, ?, ?, ?, ?, NOW())');
+    $sessionStmt->execute([$userId, 'test', $setId, $totalQuestions, 0]);
+
+    $achievementStmt = $pdo->prepare('
+        INSERT IGNORE INTO user_achievements (user_id, achievement_id, earned_at)
+        SELECT ?, id, NOW() FROM achievements WHERE code = ?
+    ');
+    $achievementStmt->execute([$userId, 'first_test']);
+    if ($score >= $totalQuestions) {
+        $achievementStmt->execute([$userId, 'perfect_score']);
+    }
+
     app_json_response(['success' => true, 'message' => 'Đã lưu kết quả test.']);
 }
 
@@ -77,5 +89,18 @@ $stmt = $pdo->prepare('
         updated_at = NOW()
 ');
 $stmt->execute([$userId, $setId, $cardId, $mode, $correctIncrement, $wrongIncrement, $lastAnswer]);
+
+$sessionStmt = $pdo->prepare('INSERT INTO study_sessions (user_id, mode, set_id, cards_studied, duration_seconds, created_at) VALUES (?, ?, ?, 1, 0, NOW())');
+$sessionStmt->execute([$userId, $mode, $setId]);
+
+$totalLearnedStmt = $pdo->prepare('SELECT COALESCE(SUM(correct_count + wrong_count),0) FROM user_progress WHERE user_id = ?');
+$totalLearnedStmt->execute([$userId]);
+if ((int) $totalLearnedStmt->fetchColumn() >= 100) {
+    $achievementStmt = $pdo->prepare('
+        INSERT IGNORE INTO user_achievements (user_id, achievement_id, earned_at)
+        SELECT ?, id, NOW() FROM achievements WHERE code = "cards_100"
+    ');
+    $achievementStmt->execute([$userId]);
+}
 
 app_json_response(['success' => true, 'message' => 'Đã lưu tiến độ.']);

@@ -16,10 +16,10 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>Tạo bộ từ mới</h1>
         <p>Nhập thông tin bộ từ và thêm nhiều flashcard trong một lần.</p>
     </div>
-    <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/sets.php"><i class="bi bi-arrow-left"></i> My Sets</a>
+    <a class="btn btn-outline-secondary" href="<?= app_url('pages/sets.php') ?>"><i class="bi bi-arrow-left"></i> My Sets</a>
 </div>
 
-<form method="post" action="<?= BASE_URL ?>actions/add_set.php" class="panel">
+<form method="post" action="<?= app_url('actions/add_set.php') ?>" class="panel">
     <div class="row g-3">
         <div class="col-lg-8">
             <label class="form-label" for="title">Tiêu đề bộ từ</label>
@@ -30,7 +30,6 @@ include __DIR__ . '/../includes/navbar.php';
             <select class="form-select visibility-select" id="visibility" name="visibility" data-class-target="#classSelectWrap">
                 <option value="private" <?= old('visibility', 'private') === 'private' ? 'selected' : '' ?>>Private - chỉ mình tôi</option>
                 <option value="public" <?= old('visibility') === 'public' ? 'selected' : '' ?>>Public - mọi người có thể học</option>
-                <option value="class" <?= old('visibility') === 'class' ? 'selected' : '' ?>>Class - chỉ lớp được chọn</option>
             </select>
         </div>
         <div class="col-lg-4" id="classSelectWrap" <?= old('visibility') === 'class' ? '' : 'hidden' ?>>
@@ -44,7 +43,7 @@ include __DIR__ . '/../includes/navbar.php';
                 <?php endforeach; ?>
             </select>
             <?php if (!$classes): ?>
-                <div class="form-text">Bạn chưa có lớp. Tạo hoặc tham gia lớp trong trang Classes.</div>
+                <div class="form-text">Chỉ dùng lựa chọn Private hoặc Public cho bộ từ cá nhân.</div>
             <?php endif; ?>
         </div>
         <div class="col-12">
@@ -94,7 +93,7 @@ include __DIR__ . '/../includes/navbar.php';
     </div>
 
     <div class="d-flex justify-content-end gap-2 mt-4">
-        <a class="btn btn-outline-secondary" href="<?= BASE_URL ?>pages/sets.php">Hủy</a>
+        <a class="btn btn-outline-secondary" href="<?= app_url('pages/sets.php') ?>">Hủy</a>
         <button class="btn btn-primary" type="submit">Lưu bộ từ</button>
     </div>
 </form>

@@ -21,7 +21,7 @@ include __DIR__ . '/../includes/navbar.php';
         <h1>Classes</h1>
         <p>Tạo lớp, tham gia lớp bằng mã mời và cấp quyền học bộ từ cho lớp.</p>
     </div>
-    <a class="btn btn-outline-primary" href="<?= BASE_URL ?>pages/create_set.php"><i class="bi bi-plus-circle"></i> Tạo bộ từ</a>
+    <a class="btn btn-outline-primary" href="<?= app_url('pages/create_set.php') ?>"><i class="bi bi-plus-circle"></i> Tạo bộ từ</a>
 </div>
 
 <div class="row g-4">
@@ -33,7 +33,7 @@ include __DIR__ . '/../includes/navbar.php';
                     <p>Chủ lớp có thể gán bộ từ cho lớp trong trang tạo/sửa bộ từ.</p>
                 </div>
             </div>
-            <form class="stack-form" method="post" action="<?= BASE_URL ?>actions/add_class.php">
+            <form class="stack-form" method="post" action="<?= app_url('actions/add_class.php') ?>">
                 <div>
                     <label class="form-label" for="class_name">Tên lớp</label>
                     <input class="form-control" id="class_name" name="name" type="text" required>
@@ -54,7 +54,7 @@ include __DIR__ . '/../includes/navbar.php';
                     <p>Nhập mã mời do chủ lớp cung cấp.</p>
                 </div>
             </div>
-            <form class="inline-search" method="post" action="<?= BASE_URL ?>actions/join_class.php">
+            <form class="inline-search" method="post" action="<?= app_url('actions/join_class.php') ?>">
                 <input class="form-control" name="invite_code" type="text" placeholder="Nhập mã mời của lớp" required>
                 <button class="btn btn-outline-primary" type="submit">Tham gia</button>
             </form>
@@ -96,9 +96,9 @@ include __DIR__ . '/../includes/navbar.php';
                         </div>
                     </div>
                     <div class="set-card-actions">
-                        <a class="btn btn-sm btn-primary" href="<?= BASE_URL ?>pages/create_set.php">Tạo bộ từ cho lớp</a>
+                        <a class="btn btn-sm btn-primary" href="<?= app_url('pages/class_detail.php') ?>?id=<?= (int) $class['id'] ?>">Chi tiết lớp</a>
                         <?php if ($class['role'] !== 'owner'): ?>
-                            <form method="post" action="<?= BASE_URL ?>actions/leave_class.php" class="confirm-delete" data-confirm="Rời khỏi lớp này?">
+                            <form method="post" action="<?= app_url('actions/leave_class.php') ?>" class="confirm-delete" data-confirm="Rời khỏi lớp này?">
                                 <input type="hidden" name="class_id" value="<?= (int) $class['id'] ?>">
                                 <button class="btn btn-sm btn-outline-danger" type="submit">Rời lớp</button>
                             </form>

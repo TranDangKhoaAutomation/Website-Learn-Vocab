@@ -9,13 +9,14 @@ if (empty($_SESSION['user_id'])) {
 require_once __DIR__ . '/../config/database.php';
 
 if (!empty($pdo)) {
-    $stmt = $pdo->prepare('SELECT name, email FROM users WHERE id = ? LIMIT 1');
+    $stmt = $pdo->prepare('SELECT name, email, role, status FROM users WHERE id = ? LIMIT 1');
     $stmt->execute([(int) $_SESSION['user_id']]);
     $authUser = $stmt->fetch();
 
-    if ($authUser) {
+    if ($authUser && ($authUser['status'] ?? 'active') !== 'locked') {
         $_SESSION['user_name'] = $authUser['name'];
         $_SESSION['user_email'] = $authUser['email'];
+        $_SESSION['user_role'] = $authUser['role'] ?? 'user';
     } else {
         session_unset();
         session_destroy();
