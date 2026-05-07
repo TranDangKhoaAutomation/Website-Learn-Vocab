@@ -1610,19 +1610,36 @@
 
     function setupThemeAndAdminUi() {
         const root = document.documentElement;
+        const themeButtons = () => $$('#themeToggle, [data-theme-toggle]');
+        const updateThemeButtons = (theme) => {
+            const isDark = theme === 'dark';
+            const label = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+            themeButtons().forEach((button) => {
+                button.setAttribute('aria-label', label);
+                button.setAttribute('title', label);
+                const icon = $('i', button);
+                if (icon) {
+                    icon.classList.remove('bi-moon', 'bi-sun');
+                    icon.classList.add(isDark ? 'bi-sun' : 'bi-moon');
+                }
+            });
+        };
         const apply = (theme) => {
             root.dataset.theme = theme;
             document.body?.classList.toggle('dark-mode', theme === 'dark');
+            updateThemeButtons(theme);
         };
         try {
             apply(localStorage.getItem('app_theme') || 'light');
         } catch (error) {
             apply('light');
         }
-        $('#themeToggle')?.addEventListener('click', () => {
-            const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
-            apply(next);
-            try { localStorage.setItem('app_theme', next); } catch (error) {}
+        themeButtons().forEach((button) => {
+            button.addEventListener('click', () => {
+                const next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+                apply(next);
+                try { localStorage.setItem('app_theme', next); } catch (error) {}
+            });
         });
         $$('[data-confirm-action]').forEach((button) => {
             button.addEventListener('click', (event) => {

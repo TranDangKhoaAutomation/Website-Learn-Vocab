@@ -75,6 +75,9 @@ $flash = get_flash();
 </head>
 <body class="auth-page" data-base-url="<?= BASE_URL ?>">
 <a class="auth-home-link" href="<?= BASE_URL ?>"><i class="bi bi-arrow-left"></i> Trang chủ</a>
+<button class="auth-theme-toggle" type="button" data-theme-toggle="icon" aria-label="Dark / Light mode" title="Dark / Light mode">
+    <i class="bi bi-moon"></i>
+</button>
 <main class="auth-card auth-card-modern">
     <section class="auth-hero">
         <div class="auth-hero-content">

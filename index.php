@@ -4,6 +4,53 @@ require_once __DIR__ . '/includes/settings.php';
 $loggedIn = !empty($_SESSION['user_id']);
 enforce_maintenance_mode();
 $registrationEnabled = settings_enabled('registration_enabled', true);
+
+// ── System stats ──
+$sysStats = ['users' => 0, 'sets' => 0, 'cards' => 0, 'sessions' => 0];
+if ($pdo) {
+    $sysStats['users']    = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    $sysStats['sets']     = (int) $pdo->query('SELECT COUNT(*) FROM vocabulary_sets WHERE status = "active"')->fetchColumn();
+    $sysStats['cards']    = (int) $pdo->query('SELECT COUNT(*) FROM flashcards')->fetchColumn();
+    $sysStats['sessions'] = (int) $pdo->query('SELECT COUNT(*) FROM study_sessions')->fetchColumn();
+}
+
+// ── Latest public sets ──
+$latestSets = [];
+$publicLibraryEnabled = settings_enabled('public_library_enabled', true);
+if ($pdo && $publicLibraryEnabled) {
+    $stmt = $pdo->prepare('
+        SELECT s.*, u.name owner_name, c.name category_name,
+               COALESCE(fc.card_count, 0) AS card_count
+        FROM vocabulary_sets s
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN categories c ON c.id = s.category_id
+        LEFT JOIN (
+            SELECT set_id, COUNT(*) AS card_count FROM flashcards GROUP BY set_id
+        ) fc ON fc.set_id = s.id
+        WHERE s.visibility = "public" AND s.status = "active"
+        ORDER BY s.updated_at DESC
+        LIMIT 6
+    ');
+    $stmt->execute();
+    $latestSets = $stmt->fetchAll();
+}
+
+// ── Leaderboard ──
+$leaderboardRows = [];
+$leaderboardEnabled = settings_enabled('leaderboard_enabled', true);
+if ($pdo && $leaderboardEnabled) {
+    $stmt = $pdo->query('
+        SELECT u.name, COALESCE(SUM(up.correct_count + up.wrong_count), 0) total
+        FROM users u
+        LEFT JOIN user_progress up ON up.user_id = u.id
+        GROUP BY u.id
+        HAVING total > 0
+        ORDER BY total DESC
+        LIMIT 5
+    ');
+    $leaderboardRows = $stmt->fetchAll();
+}
+
 if (!headers_sent()) {
     header('Content-Type: text/html; charset=utf-8');
 }
@@ -21,7 +68,7 @@ if (!headers_sent()) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
     <link href="<?= BASE_URL ?>assets/css/style.css" rel="stylesheet">
 </head>
-<body class="public-page home-page">
+<body class="public-page home-page" data-base-url="<?= BASE_URL ?>">
 <nav class="public-nav">
     <a class="public-brand" href="<?= BASE_URL ?>">
         <span class="brand-icon"><i class="bi bi-lightning-charge-fill"></i></span>
@@ -30,7 +77,11 @@ if (!headers_sent()) {
     <div class="public-nav-links">
         <a href="#features">Tính năng</a>
         <a href="#modes">Chế độ học</a>
+        <a href="#paths">Lộ trình</a>
         <a href="#founder">Người sáng lập</a>
+        <button class="public-theme-toggle" type="button" data-theme-toggle="icon" aria-label="Dark / Light mode" title="Dark / Light mode">
+            <i class="bi bi-moon"></i>
+        </button>
         <?php if ($loggedIn): ?>
             <a class="btn btn-primary" href="<?= app_url('dashboard.php') ?>">Vào Dashboard</a>
         <?php else: ?>
@@ -86,6 +137,33 @@ if (!headers_sent()) {
 </header>
 
 <main>
+    <?php if ($pdo): ?>
+    <section class="sys-stats-section">
+        <div class="sys-stats-grid">
+            <div class="sys-stat-card">
+                <i class="bi bi-people-fill"></i>
+                <strong><?= number_format($sysStats['users']) ?></strong>
+                <span>Người dùng</span>
+            </div>
+            <div class="sys-stat-card">
+                <i class="bi bi-collection-fill"></i>
+                <strong><?= number_format($sysStats['sets']) ?></strong>
+                <span>Bộ từ vựng</span>
+            </div>
+            <div class="sys-stat-card">
+                <i class="bi bi-card-text"></i>
+                <strong><?= number_format($sysStats['cards']) ?></strong>
+                <span>Flashcards</span>
+            </div>
+            <div class="sys-stat-card">
+                <i class="bi bi-play-circle-fill"></i>
+                <strong><?= number_format($sysStats['sessions']) ?></strong>
+                <span>Phiên học</span>
+            </div>
+        </div>
+    </section>
+    <?php endif; ?>
+
     <section class="home-cards-section" id="features">
         <div class="section-heading centered">
             <span>Giới thiệu nhanh</span>
@@ -156,6 +234,49 @@ if (!headers_sent()) {
         </div>
     </section>
 
+    <section class="learning-path-section" id="paths">
+        <div class="section-heading centered">
+            <span>Lộ trình học gợi ý</span>
+            <h2>Chọn mục tiêu trước, app giúp bạn đi theo từng bước rõ ràng</h2>
+            <p>Mỗi nhóm người học có thể bắt đầu bằng cách khác nhau: làm quen từ cơ bản, ôn thi, hoặc tổ chức bài học cho lớp.</p>
+        </div>
+        <div class="learning-path-grid">
+            <article class="learning-path-card featured">
+                <span class="path-number">01</span>
+                <i class="bi bi-person-walking"></i>
+                <h3>Người mới bắt đầu</h3>
+                <p>Bắt đầu bằng bộ từ nhỏ, học mặt trước/mặt sau, nghe phát âm rồi chuyển sang Learn để kiểm tra nhớ nghĩa.</p>
+                <ul>
+                    <li>5-10 từ mỗi lượt học</li>
+                    <li>Nghe phát âm trước khi trả lời</li>
+                    <li>Ôn lại ngay những câu chưa nhớ</li>
+                </ul>
+            </article>
+            <article class="learning-path-card">
+                <span class="path-number">02</span>
+                <i class="bi bi-award"></i>
+                <h3>Ôn thi và kiểm tra</h3>
+                <p>Dùng Test để trộn dạng câu hỏi, xem điểm theo từng bộ từ và phát hiện nhóm từ còn yếu để học lại.</p>
+                <ul>
+                    <li>Multiple choice, true/false, fill blank</li>
+                    <li>Lưu điểm theo từng lượt test</li>
+                    <li>Chuyển câu sai về Learn mode</li>
+                </ul>
+            </article>
+            <article class="learning-path-card">
+                <span class="path-number">03</span>
+                <i class="bi bi-people"></i>
+                <h3>Lớp học hoặc nhóm nhỏ</h3>
+                <p>Giáo viên tạo bộ từ, chia sẻ cho lớp, cấp quyền editor khi cần cùng nhau bổ sung ví dụ và hình minh họa.</p>
+                <ul>
+                    <li>Tạo lớp, mời thành viên</li>
+                    <li>Chia sẻ bộ từ theo quyền</li>
+                    <li>Theo dõi tiến độ học của từng người</li>
+                </ul>
+            </article>
+        </div>
+    </section>
+
     <section class="home-split-section">
         <div class="split-visual">
             <div class="study-glass-card large">
@@ -183,6 +304,72 @@ if (!headers_sent()) {
             </div>
         </div>
     </section>
+
+    <section class="daily-routine-section">
+        <div class="daily-routine-layout">
+            <div class="section-heading">
+                <span>Kế hoạch 15 phút mỗi ngày</span>
+                <h2>Không cần học lâu, quan trọng là quay lại đều và biết mình đang yếu ở đâu.</h2>
+                <p>Home giới thiệu một nhịp học ngắn để người mới hiểu cách dùng app trong thực tế: chọn bộ từ, nghe, trả lời, lưu tiến độ và ôn lại.</p>
+            </div>
+            <div class="routine-board">
+                <div class="routine-card active">
+                    <strong>03 phút</strong>
+                    <span>Warm up</span>
+                    <p>Lướt Flashcards, nghe phát âm và đánh dấu những từ còn lạ.</p>
+                </div>
+                <div class="routine-card">
+                    <strong>07 phút</strong>
+                    <span>Practice</span>
+                    <p>Chuyển sang Learn hoặc Match để buộc não nhớ nghĩa thay vì chỉ nhìn lại.</p>
+                </div>
+                <div class="routine-card">
+                    <strong>03 phút</strong>
+                    <span>Check</span>
+                    <p>Làm nhanh vài câu Test để xem điểm và lưu lịch sử học.</p>
+                </div>
+                <div class="routine-card">
+                    <strong>02 phút</strong>
+                    <span>Review</span>
+                    <p>Ôn riêng các câu sai, thêm ví dụ mới nếu bộ từ còn thiếu ngữ cảnh.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <?php if ($leaderboardEnabled && $leaderboardRows): ?>
+    <section class="leaderboard-section">
+        <div class="section-heading centered">
+            <span>Bảng xếp hạng</span>
+            <h2>Những người học chăm chỉ nhất</h2>
+            <p>Dữ liệu được cập nhật theo thời gian thực từ hệ thống.</p>
+        </div>
+        <div class="leaderboard-list">
+            <?php foreach ($leaderboardRows as $i => $row):
+                $rank = $i + 1;
+                $rankIcon = match($rank) {
+                    1 => 'bi-trophy-fill text-warning',
+                    2 => 'bi-trophy-fill text-secondary',
+                    3 => 'bi-trophy-fill',
+                    default => '',
+                };
+                $rankClass = $rank <= 3 ? 'top-three' : '';
+            ?>
+            <div class="leaderboard-row <?= $rankClass ?>">
+                <span class="leaderboard-rank">
+                    <?php if ($rank <= 3): ?>
+                        <i class="bi <?= $rankIcon ?>"></i>
+                    <?php else: ?>
+                        <?= $rank ?>
+                    <?php endif; ?>
+                </span>
+                <span class="leaderboard-name"><?= e($row['name']) ?></span>
+                <span class="leaderboard-total"><?= number_format((int) $row['total']) ?> câu đã học</span>
+            </div>
+            <?php endforeach; ?>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <section class="learning-flow-section">
         <div class="flow-copy">
@@ -222,6 +409,87 @@ if (!headers_sent()) {
         </div>
     </section>
 
+    <section class="topic-library-section">
+        <div class="section-heading centered">
+            <span>Gợi ý nội dung học</span>
+            <h2>Home có thể dẫn người dùng vào nhiều chủ đề từ vựng quen thuộc</h2>
+            <p>Người mới thường chưa biết nên tạo bộ từ nào trước. Các nhóm chủ đề mẫu giúp họ hình dung nhanh nội dung có thể học trong app.</p>
+        </div>
+        <div class="topic-library-grid">
+            <article>
+                <i class="bi bi-chat-dots"></i>
+                <h3>Giao tiếp hằng ngày</h3>
+                <p>Chào hỏi, hỏi đường, mua sắm, đặt lịch hẹn và các mẫu câu phản xạ nhanh.</p>
+                <span>daily · speaking · phrase</span>
+            </article>
+            <article>
+                <i class="bi bi-briefcase"></i>
+                <h3>Công việc văn phòng</h3>
+                <p>Email, meeting, deadline, báo cáo, teamwork và những từ thường gặp trong môi trường làm việc.</p>
+                <span>business · email · meeting</span>
+            </article>
+            <article>
+                <i class="bi bi-airplane"></i>
+                <h3>Du lịch và dịch vụ</h3>
+                <p>Sân bay, khách sạn, nhà hàng, phương tiện, tình huống cần hỏi hoặc xử lý khi đi xa.</p>
+                <span>travel · hotel · airport</span>
+            </article>
+            <article>
+                <i class="bi bi-mortarboard"></i>
+                <h3>Học thuật cơ bản</h3>
+                <p>Từ vựng đọc hiểu, mô tả biểu đồ, trình bày ý kiến và các cụm từ dùng trong bài viết.</p>
+                <span>academic · essay · reading</span>
+            </article>
+            <article>
+                <i class="bi bi-lightbulb"></i>
+                <h3>Cụm từ dễ nhầm</h3>
+                <p>Phân biệt các từ gần nghĩa, collocation thường gặp và ví dụ ngắn để nhớ đúng ngữ cảnh.</p>
+                <span>confusing · collocation</span>
+            </article>
+            <article>
+                <i class="bi bi-controller"></i>
+                <h3>Bộ từ luyện bằng game</h3>
+                <p>Những bộ từ ngắn, nghĩa rõ, phù hợp để chơi Blocks, Blast hoặc Match trong vài phút.</p>
+                <span>game · quick review</span>
+            </article>
+        </div>
+    </section>
+
+    <?php if ($publicLibraryEnabled && $latestSets): ?>
+    <section class="latest-sets-section">
+        <div class="section-heading centered">
+            <span>Bộ từ public mới nhất</span>
+            <h2>Khám phá nội dung do cộng đồng tạo ra</h2>
+            <p>Những bộ từ được chia sẻ công khai gần đây. Đăng nhập để học ngay.</p>
+        </div>
+        <div class="latest-sets-grid">
+            <?php foreach ($latestSets as $set): ?>
+            <article class="latest-set-card">
+                <span class="latest-set-level"><?= e($set['level'] ?? 'beginner') ?></span>
+                <h3><?= e($set['title']) ?></h3>
+                <p><?= e(mb_strlen($set['description'] ?? '') > 100 ? mb_substr($set['description'], 0, 100) . '...' : ($set['description'] ?? '')) ?></p>
+                <div class="latest-set-meta">
+                    <span><i class="bi bi-person"></i> <?= e($set['owner_name']) ?></span>
+                    <span><i class="bi bi-card-list"></i> <?= (int) $set['card_count'] ?> thẻ</span>
+                    <?php if (!empty($set['category_name'])): ?>
+                    <span><i class="bi bi-folder"></i> <?= e($set['category_name']) ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php if ($loggedIn): ?>
+                <a class="btn btn-outline-primary btn-sm" href="<?= app_url('pages/library.php') ?>">Xem trong thư viện</a>
+                <?php endif; ?>
+            </article>
+            <?php endforeach; ?>
+        </div>
+        <?php if (!$loggedIn): ?>
+        <div class="latest-sets-cta">
+            <p>Đăng nhập để truy cập thư viện đầy đủ và bắt đầu học.</p>
+            <a class="btn btn-primary" href="<?= app_url('login.php') ?>">Đăng nhập</a>
+        </div>
+        <?php endif; ?>
+    </section>
+    <?php endif; ?>
+
     <section class="sample-vocab-section">
         <div class="section-heading centered">
             <span>Thẻ mẫu</span>
@@ -246,6 +514,24 @@ if (!headers_sent()) {
         </div>
     </section>
 
+    <section class="feature-depth-section">
+        <div class="section-heading centered">
+            <span>Chi tiết tính năng</span>
+            <h2>Nhiều thao tác nhỏ được chuẩn bị để việc học mượt hơn</h2>
+            <p>Không chỉ có thẻ từ, app còn chú ý đến nhập liệu, phát âm, quyền truy cập và tiến độ để người học quay lại dễ dàng.</p>
+        </div>
+        <div class="feature-depth-grid">
+            <article><i class="bi bi-images"></i><strong>Ảnh minh họa</strong><span>Thêm hình vào thẻ để tạo liên kết thị giác khi học từ.</span></article>
+            <article><i class="bi bi-soundwave"></i><strong>Ví dụ có âm thanh</strong><span>Đọc từ và câu ví dụ bằng SpeechSynthesis trong trình duyệt.</span></article>
+            <article><i class="bi bi-arrow-repeat"></i><strong>Ôn câu sai</strong><span>Learn mode lưu câu sai để người học không bỏ sót phần yếu.</span></article>
+            <article><i class="bi bi-search"></i><strong>Tìm bộ từ nhanh</strong><span>Thanh tìm kiếm giúp quay lại đúng bộ từ đang cần luyện.</span></article>
+            <article><i class="bi bi-shield-check"></i><strong>Quyền riêng tư</strong><span>Chọn private, public, chia sẻ theo lớp hoặc theo từng người.</span></article>
+            <article><i class="bi bi-bar-chart-line"></i><strong>Lịch sử học</strong><span>Lưu kết quả đúng sai, điểm test và thời điểm học gần nhất.</span></article>
+            <article><i class="bi bi-phone"></i><strong>Dùng được trên mobile</strong><span>Layout tự co lại để học nhanh trên điện thoại hoặc máy tính bảng.</span></article>
+            <article><i class="bi bi-palette"></i><strong>Sáng tối đồng bộ</strong><span>Theme được lưu lại để Home, Login và Dashboard cùng một trải nghiệm.</span></article>
+        </div>
+    </section>
+
     <section class="faq-section">
         <div class="section-heading centered">
             <span>Câu hỏi thường gặp</span>
@@ -267,6 +553,22 @@ if (!headers_sent()) {
             <article>
                 <h3>Có học lại câu sai không?</h3>
                 <p>Có. Learn mode lưu câu sai và có tùy chọn học lại ngay hoặc tự động học lại.</p>
+            </article>
+            <article>
+                <h3>Tôi có thể import từ vựng từ nơi khác không?</h3>
+                <p>Có. Ứng dụng cung cấp công cụ import từ HTML (Quizlet, v.v.) thành bộ từ vựng có sẵn phiên âm IPA.</p>
+            </article>
+            <article>
+                <h3>Dữ liệu của tôi có được sao lưu không?</h3>
+                <p>Admin có thể sao lưu dữ liệu định kỳ qua trang Backup trong Admin Panel. Người dùng nên tự lưu nội dung quan trọng.</p>
+            </article>
+            <article>
+                <h3>Có giới hạn số lượng bộ từ hoặc thẻ không?</h3>
+                <p>Không có giới hạn cứng. Bạn có thể tạo bao nhiêu bộ từ và thẻ tùy thích, miễn là máy chủ còn tài nguyên.</p>
+            </article>
+            <article>
+                <h3>Tôi có thể đổi giao diện sáng/tối không?</h3>
+                <p>Có. Nút chuyển đổi Dark/Light mode có trên tất cả các trang và được lưu lại cho lần truy cập sau.</p>
             </article>
         </div>
     </section>
@@ -303,6 +605,34 @@ if (!headers_sent()) {
         </div>
     </section>
 
+    <section class="start-steps-section">
+        <div class="section-heading centered">
+            <span>Bắt đầu ngay</span>
+            <h2>Chỉ 3 bước để bắt đầu hành trình học từ vựng</h2>
+            <p>Không cần cài đặt gì thêm. Mọi thứ đều có sẵn trong trình duyệt.</p>
+        </div>
+        <div class="start-steps-grid">
+            <article class="start-step-card">
+                <span class="start-step-number">01</span>
+                <i class="bi bi-person-plus-fill"></i>
+                <h3>Đăng ký tài khoản</h3>
+                <p>Tạo tài khoản miễn phí trong chưa đầy 1 phút. Không cần email xác minh, bắt đầu học ngay lập tức.</p>
+            </article>
+            <article class="start-step-card">
+                <span class="start-step-number">02</span>
+                <i class="bi bi-journal-bookmark-fill"></i>
+                <h3>Chọn hoặc tạo bộ từ</h3>
+                <p>Duyệt thư viện public để tìm bộ từ phù hợp, hoặc tự tạo bộ từ riêng với flashcard, phiên âm và câu ví dụ.</p>
+            </article>
+            <article class="start-step-card">
+                <span class="start-step-number">03</span>
+                <i class="bi bi-play-circle-fill"></i>
+                <h3>Học với 6 chế độ</h3>
+                <p>Dùng Flashcards, Learn, Test, Blocks, Blast hoặc Match để luyện tập theo cách bạn thích.</p>
+            </article>
+        </div>
+    </section>
+
     <section class="home-cta">
         <h2>Sẵn sàng học thử?</h2>
         <p>Đăng nhập hoặc tạo tài khoản mới để trải nghiệm các chế độ học ngay.</p>
@@ -325,5 +655,6 @@ if (!headers_sent()) {
 </footer>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="<?= BASE_URL ?>assets/js/main.js"></script>
 </body>
 </html>
